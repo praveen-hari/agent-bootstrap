@@ -162,10 +162,22 @@ Create the `.codestudio/` directory with all harness files.
    Add UI notes if UI_PROJECT is true.
    **Does NOT touch any existing `codestudio-instructions.md`.**
 
-5. **`.codestudio/instructions/task-conventions.instructions.md`** — from `task-conventions.instructions.md.tmpl`
+5. **`.codestudio/skills/`** — copy all files from `./templates/skills/` as-is:
+   - `spec.md` — Spec-Driven Development procedure
+   - `plan.md` — Planning and Task Breakdown procedure
+   - `tdd.md` — Test-Driven Development procedure
+   - `debugging.md` — Debugging and Error Recovery procedure
+   - `commit.md` — Git Commit Discipline procedure
+   - `review.md` — Code Review and Quality procedure
+
+   These are the SDLC skill files the orchestrator reads at each loop stage.
+   They are **self-contained inside the project harness** — no external dependency required.
+   **Preserve existing if upgrade mode** (do not overwrite customised skills).
+
+6. **`.codestudio/instructions/task-conventions.instructions.md`** — from `task-conventions.instructions.md.tmpl`
    Replace `{{PROJECT_NAME}}`.
 
-6. **`.codestudio/catalogs/defects-{{FRAMEWORK}}.md`** — dynamically generated using `defects-catalog.tmpl`
+7. **`.codestudio/catalogs/defects-{{FRAMEWORK}}.md`** — dynamically generated using `defects-catalog.tmpl`
    
    This file is NOT copied from a static catalog. Generate it at setup time:
    1. Read the template at `./templates/defects-catalog.tmpl` for format and quality criteria
@@ -177,7 +189,7 @@ Create the `.codestudio/` directory with all harness files.
    For multi-framework projects: generate one catalog per framework.
    **Preserve existing if upgrade mode.**
 
-7. **`.codestudio/gates.yaml`** — from `gates.yaml.tmpl`
+8. **`.codestudio/gates.yaml`** — from `gates.yaml.tmpl`
    Source of truth for verification gates.
    Replace `{{TIER}}` with detected tier.
    Replace `{{GATES}}` with YAML gate entries from detected tools.
@@ -188,13 +200,13 @@ Create the `.codestudio/` directory with all harness files.
    Only include gates for tools that actually exist.
    **Preserve existing if upgrade mode.**
 
-8. **`.codestudio/tasks/index.json`** — from `index.json.tmpl`
+9. **`.codestudio/tasks/index.json`** — from `index.json.tmpl`
    Empty array for new projects. **Preserve existing if upgrade mode.**
 
-9. **`.codestudio/progress.md`** — from `progress.md.tmpl`
+10. **`.codestudio/progress.md`** — from `progress.md.tmpl`
    Replace `{{PROJECT_NAME}}`. **Preserve existing if upgrade mode.**
 
-10. **`.codestudio/project-context.md`** — from `project-context.md.tmpl`
+11. **`.codestudio/project-context.md`** — from `project-context.md.tmpl`
     
     **For existing repos**: populate from scan findings (extracted from source files, configs, directory structure).
     **For empty repos**: populate from interview answers.
@@ -207,7 +219,7 @@ Create the `.codestudio/` directory with all harness files.
 
 #### Create if missing (don't overwrite existing):
 
-11. **`AGENTS.md`** (repo root) — from `AGENTS.md.tmpl`
+12. **`AGENTS.md`** (repo root) — from `AGENTS.md.tmpl`
     Agent instructions for the repo. Only create if no AGENTS.md exists.
     Replace `{{PROJECT_NAME}}`, `{{STACK}}`, `{{CONVENTIONS}}`.
 
@@ -221,6 +233,7 @@ Create the `.codestudio/` directory with all harness files.
 | `gates.yaml` | **PRESERVE** |
 | `agents/orchestrator.agent.md` | Overwrite (re-detect settings) |
 | `instructions/task-conventions.instructions.md` | Overwrite |
+| `skills/*.md` | **PRESERVE** (keep project-customised skills) |
 | `catalogs/defects-*.md` | **PRESERVE** |
 | `project-context.md` | **PRESERVE** |
 | `tasks/index.json` | **PRESERVE** |
@@ -229,41 +242,13 @@ Create the `.codestudio/` directory with all harness files.
 | `evidence/` | **PRESERVE** |
 | `AGENTS.md` | **PRESERVE** |
 
-### Install required skills
+### SDLC Skills — no external dependency required
 
-The orchestrator depends on SDLC skills at `~/.agents/skills/`. Check if they exist:
+SDLC skill files are bundled with the harness and copied from `./templates/skills/` into `.codestudio/skills/` in step 5 above. The orchestrator reads them directly from the project — no global install, no network, no `~/.agents/skills/` path needed.
 
-```bash
-ls ~/.agents/skills/test-driven-development/SKILL.md 2>/dev/null
-```
+The skills copied are: `spec.md`, `plan.md`, `tdd.md`, `debugging.md`, `commit.md`, `review.md`.
 
-Required skills:
-- `interview-me`, `spec-driven-development`, `planning-and-task-breakdown`, `test-driven-development`
-- `incremental-implementation`, `debugging-and-error-recovery`, `code-review-and-quality`
-- `security-and-hardening`, `git-workflow-and-versioning`
-- `frontend-ui-engineering` (if UI_PROJECT is true)
-
-**If ANY required skills are missing**, ask the user:
-
-```
-The orchestrator needs SDLC skills for TDD, code review, security auditing, 
-and structured planning. These are not installed yet.
-
-Install now? This will run:
-  git clone https://github.com/addyosmani/agent-skills.git ~/.agents/skills
-
-[y / n / I'll install them myself]
-```
-
-- **If yes**: Run `git clone https://github.com/addyosmani/agent-skills.git ~/.agents/skills` in the terminal. Verify the clone succeeded by checking that `~/.agents/skills/test-driven-development/SKILL.md` exists.
-- **If no**: Continue bootstrap but warn clearly:
-  > "⚠️ Skills not installed. The orchestrator will use built-in fallback guidance instead of full SDLC skills. Quality will be lower. Run `git clone https://github.com/addyosmani/agent-skills.git ~/.agents/skills` anytime to upgrade."
-- **If already installed**: Skip this step silently.
-
-**If `~/.agents/skills/` exists but is outdated** (missing some skills), offer to update:
-```bash
-cd ~/.agents/skills && git pull
-```
+They are self-contained and always present after bootstrap. The orchestrator will never encounter a missing skill file.
 
 ---
 

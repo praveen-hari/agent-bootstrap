@@ -1,69 +1,60 @@
 # Stages Catalog — Skill Mapping
 
-Each loop stage has mandatory skills that the orchestrator MUST read and follow. Skills are required process steps, not optional enhancers.
+Each loop stage has a mandatory skill file that the orchestrator MUST read and follow. Skills are required process steps, not optional enhancers.
 
-Skills live at `~/.agents/skills/<name>/SKILL.md`.
+## Where Skills Live
 
-## Stage → Skill Mapping
+Skill files are **bundled inside the project harness** at `.codestudio/skills/`. They are copied from `./templates/skills/` during bootstrap and are always present. No global install, no external path, no network required.
 
-| Stage | Primary Skill | Secondary Skill | When |
-|-------|--------------|-----------------|------|
-| INTERVIEW | `interview-me` | — | Empty repos — extracting user intent |
-| DECOMPOSE | `planning-and-task-breakdown` | — | Breaking user goals into tasks |
-| SPEC | `spec-driven-development` | — | Complex or unclear tasks |
-| PLAN | `planning-and-task-breakdown` | — | Multi-step tasks |
-| BUILD | `incremental-implementation` | `test-driven-development` | Always |
-| VERIFY | `debugging-and-error-recovery` | — | On failure (up to 3 retries) |
-| REVIEW | `code-review-and-quality` | `security-and-hardening` | >10 files changed or sensitive task |
-| COMMIT | `git-workflow-and-versioning` | — | Always (if .git exists) |
+```
+.codestudio/
+  skills/
+    spec.md         ← SPEC stage
+    plan.md         ← PLAN and DECOMPOSE stages
+    tdd.md          ← BUILD stage
+    debugging.md    ← VERIFY stage (on failure)
+    commit.md       ← COMMIT stage
+    review.md       ← REVIEW stage
+```
 
-## Context-Specific Skills
+## Stage → Skill File Mapping
 
-Activate based on what the task touches:
-
-| Skill | Trigger |
-|-------|---------|
-| `frontend-ui-engineering` | Task involves UI components, pages, layouts |
-| `frontend-design-system` | Task involves design tokens, themes, styles |
-| `context-engineering` | Task involves configuring agent rules or context |
-| `documentation-and-adrs` | Task involves architectural decisions or public APIs |
-| `shipping-and-launch` | Task involves deployment or production readiness |
+| Stage | Skill File | When |
+|-------|-----------|------|
+| DECOMPOSE | `.codestudio/skills/plan.md` | Breaking user goals into tasks |
+| SPEC | `.codestudio/skills/spec.md` | Every task — no exceptions |
+| PLAN | `.codestudio/skills/plan.md` | Every task — no exceptions |
+| BUILD | `.codestudio/skills/tdd.md` | Every subtask — no exceptions |
+| VERIFY (failure) | `.codestudio/skills/debugging.md` | On any gate failure |
+| COMMIT | `.codestudio/skills/commit.md` | Every verified subtask |
+| REVIEW | `.codestudio/skills/review.md` | Every task — no exceptions |
 
 ## How Skills Are Invoked
 
-The orchestrator names each skill at the relevant stage in its agent file:
+The orchestrator reads the skill file using `read_file` at the start of each stage and follows every step. The read is mandatory and happens before any work begins at that stage.
 
 ```markdown
-### 4. BUILD
-Read and follow `~/.agents/skills/test-driven-development/SKILL.md`: RED → GREEN → REFACTOR.
+### 2. SPEC
+Read `.codestudio/skills/spec.md` now. Follow every step in that file.
 ```
 
-The agent reads the skill file using `read_file` and follows its instructions. Skills are mandatory — the agent must not skip them.
+There are no fallbacks. There is no "if it exists" guard. The file is always present after bootstrap.
 
-## Skill Detection
+## Customising Skills
 
-During bootstrap, check for installed skills:
-```
-~/.agents/skills/<name>/SKILL.md
-```
+Skill files inside `.codestudio/skills/` are project-owned. Teams can edit them to match their conventions (e.g. a different commit format, project-specific review axes, stricter acceptance criteria rules). Bootstrap preserves existing skill files on upgrade — it never overwrites them.
 
-Required skills:
-- `interview-me`
-- `spec-driven-development`
-- `planning-and-task-breakdown`
-- `test-driven-development`
-- `incremental-implementation`
-- `debugging-and-error-recovery`
-- `code-review-and-quality`
-- `security-and-hardening`
-- `git-workflow-and-versioning`
+## INTERVIEW Stage (bootstrap only)
 
-Conditional:
-- `frontend-ui-engineering` (if UI_PROJECT is true)
+The interview stage runs during `@agent-bootstrap` for empty repos. It is not part of the ongoing orchestrator loop. Bootstrap handles this directly — it does not depend on a skill file for interview.
 
-If missing, warn the user during bootstrap. The orchestrator falls back to inline guidance but this is degraded mode.
+## Context-Specific Additions
 
-Install all skills with:
-```bash
-git clone https://github.com/addyosmani/agent-skills.git ~/.agents/skills
-```
+For tasks touching specific areas, the orchestrator extends its review checklist:
+
+| Area | Trigger | Extra check |
+|------|---------|-------------|
+| UI components / pages | `src/**/*.tsx`, `src/**/*.vue`, `components/` | States: loading skeleton, empty, error (see `tdd.md` and `review.md`) |
+| Auth / security paths | `**/auth/**`, `**/.env*` | Security axis in `review.md` — flag for human review |
+| Database migrations | `**/migration*/**` | Risk-gated — flag for human review |
+| Architectural decisions | New services, API contracts | Log decision in `progress.md`, update `project-context.md` |

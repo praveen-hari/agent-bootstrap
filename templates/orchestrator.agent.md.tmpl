@@ -29,7 +29,7 @@ When the user says "build X" or "add feature Y" or "fix bug Z":
 3. **Confirm** the task list with the user (show what will be built)
 4. **Start the loop** at PICK
 
-Read and follow `~/.agents/skills/planning-and-task-breakdown/SKILL.md` for structured decomposition. If the skill file does not exist, use the inline guidance in DECOMPOSE below.
+**BEFORE decomposing any goal, read and follow `.codestudio/skills/plan.md`.** This is mandatory — do not proceed without reading it.
 
 ## Delegation Model
 
@@ -86,7 +86,7 @@ The order exists because each phase gates the next:
 - Without tests-from-spec, you verify vibes not requirements
 - Without REVIEW, defects ship
 
-**Skills are mandatory.** At each stage, use `read_file` to read the skill's `SKILL.md`. Do NOT paraphrase from memory — the skill contains procedures you must follow. If the skill file does not exist at the path, THEN AND ONLY THEN use the inline fallback guidance.
+**Skills are mandatory.** At each stage, use `read_file` to read the skill file listed. The skill files live in `.codestudio/skills/` — they are part of this project's harness and are always present. Do NOT paraphrase from memory. Do NOT skip the read.
 
 ## Loop Stages
 
@@ -98,64 +98,33 @@ Read the task file at `.codestudio/tasks/<ID>.md`.
 
 **MANDATORY.** Every task gets a spec. No exceptions, not even "trivial" tasks.
 
-Read and follow: `~/.agents/skills/spec-driven-development/SKILL.md`
+**Read `.codestudio/skills/spec.md` now. Follow every step in that file.**
 
-Write `## What` in the task file with:
-- **Behaviour**: what the system does that it did not before
-- **Scope boundary**: what this task explicitly does NOT cover
-- **Acceptance criteria**: each one checkable by a tool or a test
-  - ❌ "Handles errors gracefully" — not a criterion
-  - ✅ "Returns 400 with ProblemDetails body when orderId is malformed, covered by a test"
+Output: `## What` written in the task file containing behaviour, out-of-scope list, acceptance criteria (each naming its verification method), and open questions.
 
-**Present the spec to the user before proceeding to PLAN.** Wait for confirmation. This is the review gate that prevents building the wrong thing.
-
-**Inline fallback** (only if skill file does not exist):
-- Write scope boundaries first (what's OUT)
-- Each acceptance criterion names the test or gate that will verify it
-- If you cannot name how to verify a criterion, it is not specified yet — rewrite it
+**Present the spec to the user before proceeding to PLAN. Wait for confirmation.**
 
 ### 3. PLAN — Break Down Before You Build (NEVER skip)
 
 **MANDATORY.** Every task gets a plan. No exceptions.
 
-Read and follow: `~/.agents/skills/planning-and-task-breakdown/SKILL.md`
+**Read `.codestudio/skills/plan.md` now. Follow every step in that file.**
 
-Write `## Plan` in the task file with:
-- Dependency-ordered subtask checkboxes
-- Each subtask = one commit's worth of work
-- **Each behaviour-adding subtask NAMES the test that will cover it** — if you cannot name the test, the subtask is not specified, go back to SPEC
-- Slice vertically: a thin end-to-end path beats a horizontal layer
+Output: `## Plan` written in the task file with dependency-ordered subtask checkboxes, each naming its verification test.
 
-**Present the plan to the user before proceeding to BUILD.** The plan is the contract for what gets built.
-
-**Inline fallback** (only if skill file does not exist):
-- Order by dependency — what must exist before the next step
-- Each subtask should be independently verifiable
-- Never plan more than one commit's worth of work per subtask
+**Present the plan to the user before proceeding to BUILD. Wait for confirmation.**
 
 ### 4. BUILD — Test First, Then Implement (NEVER skip TDD)
 
 **Delegate to sub-agent** (see Delegation Model above).
 
-The sub-agent MUST follow this process:
+The sub-agent prompt MUST include:
+```
+Read .codestudio/skills/tdd.md and follow every step for EACH subtask.
+Do not proceed with any subtask without reading that file first.
+```
 
-**Read and follow: `~/.agents/skills/test-driven-development/SKILL.md`** — This is mandatory, not optional.
-
-For each subtask in ## Plan:
-1. **RED** — Write the test FIRST, from the acceptance criteria in ## What. Run it. It MUST fail. A test written after the code encodes what the code does, not what was asked for.
-2. **GREEN** — Write the minimum code to make the test pass.
-3. **REFACTOR** — Clean up without changing behaviour.
-4. **GATES** — Run ALL gate commands. Every gate must pass before moving to the next subtask.
-5. **CHECK** — Tick the subtask checkbox.
-
-Also read and follow: `~/.agents/skills/incremental-implementation/SKILL.md`
-- UI work → also read `~/.agents/skills/frontend-ui-engineering/SKILL.md`
-
-**Inline fallback** (only if TDD skill file does not exist):
-- Write test BEFORE implementation — this is not negotiable
-- Run test → must fail (RED) → implement → must pass (GREEN) → refactor
-- Run all gates after each subtask
-- One subtask = one commit
+The sub-agent follows `.codestudio/skills/tdd.md` for the RED→GREEN→REFACTOR cycle, gate enforcement, and commit discipline per subtask.
 
 ### 5. VERIFY — Evidence Before Commit (NEVER skip)
 Run: `python3 .codestudio/task.py verify`
@@ -164,51 +133,18 @@ Runs all gates from `.codestudio/gates.yaml` in parallel with ratchet enforcemen
 **`task.py done` will REFUSE without passing evidence. The agent may not assert that gates pass — it must run the tool and cite the evidence.**
 
 If verify fails:
-1. Read and follow `~/.agents/skills/debugging-and-error-recovery/SKILL.md`
-2. Read the FULL gate output — it names the exact file, line, or rule
-3. Fix the root cause, not the symptom
-4. **NEVER weaken a gate to pass it**
-5. Re-run verify
-6. After 3 failures → `python3 .codestudio/task.py block "reason"` with the failing evidence attached
-
-**Inline fallback** (only if debugging skill does not exist):
-- Read the complete error output — don't skim
-- The gate names exactly what failed and where
-- Fix the cause, not the message
+1. **Read `.codestudio/skills/debugging.md` and follow the triage checklist exactly.**
+2. After 3 failures → `python3 .codestudio/task.py block "reason"` with the full failing gate output attached.
 
 ### 6. COMMIT — After Verify Only (NEVER before)
-Atomic commit with conventional message: `type(scope): description`
 
-Read and follow: `~/.agents/skills/git-workflow-and-versioning/SKILL.md`
-
-**Inline fallback** (only if skill does not exist):
-- Format: `type(scope): description`
-- Types: `feat`, `fix`, `test`, `refactor`, `docs`, `chore`, `ci`, `style`, `perf`
-- One subtask = one commit
-- Never combine unrelated changes
+**Read `.codestudio/skills/commit.md` and follow the format and rules defined there.**
 
 ### 7. REVIEW — Catalog-Driven, Evidence-Aware (NEVER skip)
 
-Read and follow: `~/.agents/skills/code-review-and-quality/SKILL.md`
+**Read `.codestudio/skills/review.md` and follow every step defined there.**
 
-Then:
-1. **Read gate evidence FIRST** — `.codestudio/evidence/<TASK>/gate-summary.json`
-   - Do NOT re-check what gates already proved (coverage, lint, type errors)
-   - DO focus on what gates can't prove: logic errors, design issues, missing edge cases
-2. Read `.codestudio/catalogs/defects-*.md` — work each applicable entry against the diff
-3. If the diff touches risk-gated paths → also read and follow `~/.agents/skills/security-and-hardening/SKILL.md` and flag for human review
-4. Write `## Review` in task file. Each finding must state:
-   - The rule id (from defect catalog)
-   - Whether the rule is enforced in project config (linter, analyzer)
-   - If not enforced: the config-level fix (prevents the class, not just this instance)
-5. If issues: fix → re-verify → re-commit → re-review
-
-**Inline fallback** (only if code-review skill does not exist):
-- Does the code match every acceptance criterion in ## What?
-- Are there obvious bugs, missing edge cases, or untested paths?
-- Is user input sanitized? Are secrets hardcoded? Is auth enforced?
-- Does it follow existing project patterns (from project-context.md)?
-- Are tests covering every acceptance criterion?
+This includes: reading gate evidence first, walking the defect catalog, reviewing along all five axes (correctness, readability, architecture, security, performance), categorizing findings, and writing `## Review` in the task file.
 
 ### 8. LEARN
 1. Write `## Log` in the task file: decisions made, problems hit, what worked
