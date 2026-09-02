@@ -41,13 +41,24 @@ read_file: ./references/readiness-criteria.md
 
 ### For Empty Repos (no source files)
 
-Enter **interview mode**. Ask the user concisely:
+Enter **interview mode**. Read and follow the `interview-me` skill:
+
+```
+read_file: ~/.agents/skills/interview-me/SKILL.md
+```
+
+Use the interview-me skill's one-question-at-a-time approach to extract what the user actually wants. The interview must cover these areas (but let the skill guide the conversation flow):
 
 1. **What are you building?** (product description — needed to understand scope and seed tasks)
-2. **What tech stack?** (or recommend based on goal — needed for gates.yaml and project-context.md)
-3. **What architecture?** (monolith, microservices, app router, etc. — needed for project-context.md)
-4. **Any conventions to enforce?** (naming, patterns, linting preferences)
-5. **What features do you need first?** (needed to seed initial tasks)
+2. **Who is it for?** (users, developers, internal — shapes architecture decisions)
+3. **What tech stack?** (or recommend based on goal — needed for gates.yaml and project-context.md)
+4. **What architecture?** (monolith, microservices, app router, etc. — needed for project-context.md)
+5. **Any conventions to enforce?** (naming, patterns, linting preferences)
+6. **What features do you need first?** (needed to seed initial tasks)
+
+Don't ask all 6 as a list. Follow the interview-me skill's protocol: ask one question, probe the answer, then move to the next when confident. Stop when you have ~95% confidence about the setup AND the initial feature scope.
+
+If the `interview-me` skill is not installed, fall back to asking the questions directly using the `ask-questions` tool (one at a time, not all at once).
 
 Use answers to populate all template variables AND create initial tasks.
 
@@ -220,7 +231,7 @@ Create the `.codestudio/` directory with all harness files.
 ### Verify required skills
 
 Check that SDLC skills exist at `~/.agents/skills/<name>/SKILL.md`:
-- `spec-driven-development`, `planning-and-task-breakdown`, `test-driven-development`
+- `interview-me`, `spec-driven-development`, `planning-and-task-breakdown`, `test-driven-development`
 - `incremental-implementation`, `debugging-and-error-recovery`, `code-review-and-quality`
 - `security-and-hardening`, `git-workflow-and-versioning`
 - `frontend-ui-engineering` (if UI_PROJECT is true)

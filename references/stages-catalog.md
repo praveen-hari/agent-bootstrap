@@ -8,6 +8,7 @@ Skills live at `~/.agents/skills/<name>/SKILL.md`.
 
 | Stage | Primary Skill | Secondary Skill | When |
 |-------|--------------|-----------------|------|
+| INTERVIEW | `interview-me` | — | Empty repos — extracting user intent |
 | DECOMPOSE | `planning-and-task-breakdown` | — | Breaking user goals into tasks |
 | SPEC | `spec-driven-development` | — | Complex or unclear tasks |
 | PLAN | `planning-and-task-breakdown` | — | Multi-step tasks |
@@ -47,6 +48,7 @@ During bootstrap, check for installed skills:
 ```
 
 Required skills:
+- `interview-me`
 - `spec-driven-development`
 - `planning-and-task-breakdown`
 - `test-driven-development`
