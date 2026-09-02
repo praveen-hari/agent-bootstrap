@@ -29,7 +29,7 @@ When the user says "build X" or "add feature Y" or "fix bug Z":
 3. **Confirm** the task list with the user (show what will be built)
 4. **Start the loop** at PICK
 
-For complex goals, read `~/.agents/skills/planning-and-task-breakdown/SKILL.md` for structured decomposition.
+Read and follow `~/.agents/skills/planning-and-task-breakdown/SKILL.md` for structured decomposition. If the skill file does not exist, use the inline guidance in DECOMPOSE below.
 
 ## Delegation Model
 
@@ -54,15 +54,20 @@ runSubagent(
 
     Instructions:
     1. Follow the conventions and architecture in PROJECT CONTEXT above
-    2. Implement each subtask in PLAN, checking boxes as you go
+    2. For EACH subtask, follow TDD strictly:
+       a. Write the test FIRST from the acceptance criteria (RED — test must fail)
+       b. Write minimum code to pass (GREEN)
+       c. Refactor without changing behaviour (REFACTOR)
     3. Put code in the correct location per the Architecture section
     4. Follow naming and patterns per the Conventions section
     5. Do NOT modify files listed in Boundaries
-    6. After each subtask, run ALL gate commands from GATES above — every gate must pass
-    7. When all subtasks pass, report DONE with a summary of changes
-    8. If stuck after 3 attempts on any step, report BLOCKED with the reason
+    6. After EACH subtask, run ALL gate commands from GATES above — every gate must pass
+    7. NEVER weaken a gate, delete a test, or lower a threshold to make gates pass
+    8. When all subtasks pass, report DONE with a summary of changes
+    9. If stuck after 3 attempts on any step, report BLOCKED with the reason and failing evidence
 
-    Do NOT run task.py commands — the orchestrator manages task state.",
+    Do NOT run task.py commands — the orchestrator manages task state.
+    Do NOT skip writing tests. Tests come before implementation, not after.",
   description: "Build T-XXX: <title>"
 )
 ```
@@ -71,102 +76,145 @@ After the sub-agent returns:
 - **DONE** → proceed to VERIFY
 - **BLOCKED** → run `task.py block "reason"`, pick next task
 
+## MANDATORY PROCESS — No Shortcuts
+
+**Every task follows phases 1→2→3→4 in strict order. Skipping a phase is a defect, not an optimization.**
+
+The order exists because each phase gates the next:
+- Without SPEC, you build the wrong thing
+- Without PLAN, you build it in the wrong order
+- Without tests-from-spec, you verify vibes not requirements
+- Without REVIEW, defects ship
+
+**Skills are mandatory.** At each stage, use `read_file` to read the skill's `SKILL.md`. Do NOT paraphrase from memory — the skill contains procedures you must follow. If the skill file does not exist at the path, THEN AND ONLY THEN use the inline fallback guidance.
+
 ## Loop Stages
 
 ### 1. PICK
 Run `python3 .codestudio/task.py next` to get the next task.
 Read the task file at `.codestudio/tasks/<ID>.md`.
 
-### 2. SPEC
-Write `## What` in the task file with acceptance criteria.
-For complex tasks, try reading `~/.agents/skills/spec-driven-development/SKILL.md`.
+### 2. SPEC — Write Before You Code (NEVER skip)
 
-**If skill not installed**, use this fallback:
-- Define scope boundaries (what this task does NOT cover)
-- Write testable acceptance criteria (not "handles errors gracefully" but "returns 400 with error body when input is malformed")
-- Each criterion must be checkable by a tool or a test
+**MANDATORY.** Every task gets a spec. No exceptions, not even "trivial" tasks.
 
-### 3. PLAN
-Write `## Plan` with subtask checkboxes ordered by dependency.
-For tasks with >2 subtasks, try reading `~/.agents/skills/planning-and-task-breakdown/SKILL.md`.
+Read and follow: `~/.agents/skills/spec-driven-development/SKILL.md`
 
-**If skill not installed**, use this fallback:
-- Slice vertically: a thin end-to-end path beats a horizontal layer
+Write `## What` in the task file with:
+- **Behaviour**: what the system does that it did not before
+- **Scope boundary**: what this task explicitly does NOT cover
+- **Acceptance criteria**: each one checkable by a tool or a test
+  - ❌ "Handles errors gracefully" — not a criterion
+  - ✅ "Returns 400 with ProblemDetails body when orderId is malformed, covered by a test"
+
+**Present the spec to the user before proceeding to PLAN.** Wait for confirmation. This is the review gate that prevents building the wrong thing.
+
+**Inline fallback** (only if skill file does not exist):
+- Write scope boundaries first (what's OUT)
+- Each acceptance criterion names the test or gate that will verify it
+- If you cannot name how to verify a criterion, it is not specified yet — rewrite it
+
+### 3. PLAN — Break Down Before You Build (NEVER skip)
+
+**MANDATORY.** Every task gets a plan. No exceptions.
+
+Read and follow: `~/.agents/skills/planning-and-task-breakdown/SKILL.md`
+
+Write `## Plan` in the task file with:
+- Dependency-ordered subtask checkboxes
 - Each subtask = one commit's worth of work
-- Order by dependency
-- Each behaviour-adding subtask names the test that covers it
+- **Each behaviour-adding subtask NAMES the test that will cover it** — if you cannot name the test, the subtask is not specified, go back to SPEC
+- Slice vertically: a thin end-to-end path beats a horizontal layer
 
-### 4. BUILD
+**Present the plan to the user before proceeding to BUILD.** The plan is the contract for what gets built.
+
+**Inline fallback** (only if skill file does not exist):
+- Order by dependency — what must exist before the next step
+- Each subtask should be independently verifiable
+- Never plan more than one commit's worth of work per subtask
+
+### 4. BUILD — Test First, Then Implement (NEVER skip TDD)
+
 **Delegate to sub-agent** (see Delegation Model above).
 
-**Fallback** (no runSubagent): Build directly.
-Try reading these skills (use fallback guidance if not installed):
-- `~/.agents/skills/test-driven-development/SKILL.md` — RED → GREEN → REFACTOR
-- `~/.agents/skills/incremental-implementation/SKILL.md` — thin vertical slices
-- UI work → `~/.agents/skills/frontend-ui-engineering/SKILL.md`
+The sub-agent MUST follow this process:
 
-**If TDD skill not installed**, use this fallback:
-- Write the test FIRST, before implementation (RED)
-- Run the test — it should fail
-- Write the minimum code to make it pass (GREEN)
-- Refactor for clarity without changing behaviour (REFACTOR)
+**Read and follow: `~/.agents/skills/test-driven-development/SKILL.md`** — This is mandatory, not optional.
+
+For each subtask in ## Plan:
+1. **RED** — Write the test FIRST, from the acceptance criteria in ## What. Run it. It MUST fail. A test written after the code encodes what the code does, not what was asked for.
+2. **GREEN** — Write the minimum code to make the test pass.
+3. **REFACTOR** — Clean up without changing behaviour.
+4. **GATES** — Run ALL gate commands. Every gate must pass before moving to the next subtask.
+5. **CHECK** — Tick the subtask checkbox.
+
+Also read and follow: `~/.agents/skills/incremental-implementation/SKILL.md`
+- UI work → also read `~/.agents/skills/frontend-ui-engineering/SKILL.md`
+
+**Inline fallback** (only if TDD skill file does not exist):
+- Write test BEFORE implementation — this is not negotiable
+- Run test → must fail (RED) → implement → must pass (GREEN) → refactor
 - Run all gates after each subtask
-
-**If incremental-implementation skill not installed**, use this fallback:
-- Make the smallest possible change that adds value
 - One subtask = one commit
-- Each commit should leave the codebase in a working state
-- Never make a large change in one step — break it down
 
-### 5. VERIFY (before commit)
+### 5. VERIFY — Evidence Before Commit (NEVER skip)
 Run: `python3 .codestudio/task.py verify`
 
 Runs all gates from `.codestudio/gates.yaml` in parallel with ratchet enforcement.
+**`task.py done` will REFUSE without passing evidence. The agent may not assert that gates pass — it must run the tool and cite the evidence.**
 
 If verify fails:
-1. Try reading `~/.agents/skills/debugging-and-error-recovery/SKILL.md`
-2. **If skill not installed**, use this fallback:
-   - Read the FULL error output — the gate names the exact file, line, or rule
-   - Fix the root cause, not the symptom
-   - Never weaken a gate to pass it
-3. Re-run verify
-4. After 3 failures → `python3 .codestudio/task.py block "reason"`
+1. Read and follow `~/.agents/skills/debugging-and-error-recovery/SKILL.md`
+2. Read the FULL gate output — it names the exact file, line, or rule
+3. Fix the root cause, not the symptom
+4. **NEVER weaken a gate to pass it**
+5. Re-run verify
+6. After 3 failures → `python3 .codestudio/task.py block "reason"` with the failing evidence attached
 
-### 6. COMMIT (after verify)
+**Inline fallback** (only if debugging skill does not exist):
+- Read the complete error output — don't skim
+- The gate names exactly what failed and where
+- Fix the cause, not the message
+
+### 6. COMMIT — After Verify Only (NEVER before)
 Atomic commit with conventional message: `type(scope): description`
-Try reading `~/.agents/skills/git-workflow-and-versioning/SKILL.md`.
 
-**If skill not installed**, use this fallback:
+Read and follow: `~/.agents/skills/git-workflow-and-versioning/SKILL.md`
+
+**Inline fallback** (only if skill does not exist):
 - Format: `type(scope): description`
 - Types: `feat`, `fix`, `test`, `refactor`, `docs`, `chore`, `ci`, `style`, `perf`
 - One subtask = one commit
-- Never combine unrelated changes in one commit
+- Never combine unrelated changes
 
-### 7. REVIEW
-1. Try reading `~/.agents/skills/code-review-and-quality/SKILL.md`
-2. Read `.codestudio/catalogs/defects-*.md` — check each rule against the diff
-3. **Read gate evidence first** — `.codestudio/evidence/<TASK>/gate-summary.json`
+### 7. REVIEW — Catalog-Driven, Evidence-Aware (NEVER skip)
+
+Read and follow: `~/.agents/skills/code-review-and-quality/SKILL.md`
+
+Then:
+1. **Read gate evidence FIRST** — `.codestudio/evidence/<TASK>/gate-summary.json`
    - Do NOT re-check what gates already proved (coverage, lint, type errors)
    - DO focus on what gates can't prove: logic errors, design issues, missing edge cases
-4. If the diff touches risk-gated paths (auth, migrations, API contracts) → try reading `~/.agents/skills/security-and-hardening/SKILL.md` and flag for human review
-5. Write `## Review` in task file. Each finding must state:
+2. Read `.codestudio/catalogs/defects-*.md` — work each applicable entry against the diff
+3. If the diff touches risk-gated paths → also read and follow `~/.agents/skills/security-and-hardening/SKILL.md` and flag for human review
+4. Write `## Review` in task file. Each finding must state:
    - The rule id (from defect catalog)
    - Whether the rule is enforced in project config (linter, analyzer)
    - If not enforced: the config-level fix (prevents the class, not just this instance)
-6. If issues: fix → re-verify → re-commit → re-review
+5. If issues: fix → re-verify → re-commit → re-review
 
-**If code-review skill not installed**, use this fallback:
-- Does the code match ## What?
+**Inline fallback** (only if code-review skill does not exist):
+- Does the code match every acceptance criterion in ## What?
 - Are there obvious bugs, missing edge cases, or untested paths?
 - Is user input sanitized? Are secrets hardcoded? Is auth enforced?
 - Does it follow existing project patterns (from project-context.md)?
-- Are tests covering the acceptance criteria?
+- Are tests covering every acceptance criterion?
 
 ### 8. LEARN
-1. Write `## Log` in the task file
-2. Append summary to `.codestudio/progress.md`
+1. Write `## Log` in the task file: decisions made, problems hit, what worked
+2. Append a one-line summary to `.codestudio/progress.md`
 3. If architecture changed → update `.codestudio/project-context.md`
-4. Run `python3 .codestudio/task.py done`
+4. Run `python3 .codestudio/task.py done` (requires passing gate evidence)
 
 ### 9. NEXT
 Return to PICK. Continue autonomously.
