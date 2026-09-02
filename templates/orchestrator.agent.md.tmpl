@@ -79,19 +79,44 @@ Read the task file at `.codestudio/tasks/<ID>.md`.
 
 ### 2. SPEC
 Write `## What` in the task file with acceptance criteria.
-For complex tasks, read `~/.agents/skills/spec-driven-development/SKILL.md`.
+For complex tasks, try reading `~/.agents/skills/spec-driven-development/SKILL.md`.
+
+**If skill not installed**, use this fallback:
+- Define scope boundaries (what this task does NOT cover)
+- Write testable acceptance criteria (not "handles errors gracefully" but "returns 400 with error body when input is malformed")
+- Each criterion must be checkable by a tool or a test
 
 ### 3. PLAN
 Write `## Plan` with subtask checkboxes ordered by dependency.
-For tasks with >2 subtasks, read `~/.agents/skills/planning-and-task-breakdown/SKILL.md`.
+For tasks with >2 subtasks, try reading `~/.agents/skills/planning-and-task-breakdown/SKILL.md`.
+
+**If skill not installed**, use this fallback:
+- Slice vertically: a thin end-to-end path beats a horizontal layer
+- Each subtask = one commit's worth of work
+- Order by dependency
+- Each behaviour-adding subtask names the test that covers it
 
 ### 4. BUILD
 **Delegate to sub-agent** (see Delegation Model above).
 
-**Fallback** (no runSubagent): Build directly. Follow:
+**Fallback** (no runSubagent): Build directly.
+Try reading these skills (use fallback guidance if not installed):
 - `~/.agents/skills/test-driven-development/SKILL.md` — RED → GREEN → REFACTOR
 - `~/.agents/skills/incremental-implementation/SKILL.md` — thin vertical slices
 - UI work → `~/.agents/skills/frontend-ui-engineering/SKILL.md`
+
+**If TDD skill not installed**, use this fallback:
+- Write the test FIRST, before implementation (RED)
+- Run the test — it should fail
+- Write the minimum code to make it pass (GREEN)
+- Refactor for clarity without changing behaviour (REFACTOR)
+- Run all gates after each subtask
+
+**If incremental-implementation skill not installed**, use this fallback:
+- Make the smallest possible change that adds value
+- One subtask = one commit
+- Each commit should leave the codebase in a working state
+- Never make a large change in one step — break it down
 
 ### 5. VERIFY (before commit)
 Run: `python3 .codestudio/task.py verify`
@@ -99,27 +124,43 @@ Run: `python3 .codestudio/task.py verify`
 Runs all gates from `.codestudio/gates.yaml` in parallel with ratchet enforcement.
 
 If verify fails:
-1. Read `~/.agents/skills/debugging-and-error-recovery/SKILL.md`
-2. Fix root cause, not symptom
+1. Try reading `~/.agents/skills/debugging-and-error-recovery/SKILL.md`
+2. **If skill not installed**, use this fallback:
+   - Read the FULL error output — the gate names the exact file, line, or rule
+   - Fix the root cause, not the symptom
+   - Never weaken a gate to pass it
 3. Re-run verify
 4. After 3 failures → `python3 .codestudio/task.py block "reason"`
 
 ### 6. COMMIT (after verify)
 Atomic commit with conventional message: `type(scope): description`
-Read `~/.agents/skills/git-workflow-and-versioning/SKILL.md`.
+Try reading `~/.agents/skills/git-workflow-and-versioning/SKILL.md`.
+
+**If skill not installed**, use this fallback:
+- Format: `type(scope): description`
+- Types: `feat`, `fix`, `test`, `refactor`, `docs`, `chore`, `ci`, `style`, `perf`
+- One subtask = one commit
+- Never combine unrelated changes in one commit
 
 ### 7. REVIEW
-1. Read `~/.agents/skills/code-review-and-quality/SKILL.md`
+1. Try reading `~/.agents/skills/code-review-and-quality/SKILL.md`
 2. Read `.codestudio/catalogs/defects-*.md` — check each rule against the diff
 3. **Read gate evidence first** — `.codestudio/evidence/<TASK>/gate-summary.json`
    - Do NOT re-check what gates already proved (coverage, lint, type errors)
    - DO focus on what gates can't prove: logic errors, design issues, missing edge cases
-4. If the diff touches risk-gated paths (auth, migrations, API contracts) → read `~/.agents/skills/security-and-hardening/SKILL.md` and flag for human review
+4. If the diff touches risk-gated paths (auth, migrations, API contracts) → try reading `~/.agents/skills/security-and-hardening/SKILL.md` and flag for human review
 5. Write `## Review` in task file. Each finding must state:
    - The rule id (from defect catalog)
    - Whether the rule is enforced in project config (linter, analyzer)
    - If not enforced: the config-level fix (prevents the class, not just this instance)
 6. If issues: fix → re-verify → re-commit → re-review
+
+**If code-review skill not installed**, use this fallback:
+- Does the code match ## What?
+- Are there obvious bugs, missing edge cases, or untested paths?
+- Is user input sanitized? Are secrets hardcoded? Is auth enforced?
+- Does it follow existing project patterns (from project-context.md)?
+- Are tests covering the acceptance criteria?
 
 ### 8. LEARN
 1. Write `## Log` in the task file

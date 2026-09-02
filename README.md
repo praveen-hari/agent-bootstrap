@@ -185,7 +185,24 @@ This is the cheapest path for an agent told to make things green. The ratchet bl
 
 ## SDLC Skills
 
-The orchestrator uses skills from `~/.agents/skills/` at each stage. Install with:
+The orchestrator uses SDLC skills from `~/.agents/skills/` at each loop stage (TDD, code review, security, etc.).
+
+**During bootstrap**, the skill checks if these are installed and offers to auto-install them:
+
+```mermaid
+flowchart TD
+    A["Check ~/.agents/skills/"] --> B{"Skills\ninstalled?"}
+    B -->|Yes| C["✅ Continue bootstrap"]
+    B -->|No| D["Ask user:\nInstall now?"]
+    D -->|Yes| E["git clone agent-skills\n→ ~/.agents/skills/"]
+    D -->|No| F["⚠️ Continue with\nbuilt-in fallback guidance"]
+    E --> C
+
+    style C fill:#e8f5e9,stroke:#2e7d32
+    style F fill:#fff3e0,stroke:#ef6c00
+```
+
+If skills are not installed, the orchestrator uses **built-in fallback guidance** — less detailed but functional. You can install skills anytime:
 
 ```bash
 git clone https://github.com/addyosmani/agent-skills.git ~/.agents/skills

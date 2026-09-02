@@ -229,16 +229,41 @@ Create the `.codestudio/` directory with all harness files.
 | `evidence/` | **PRESERVE** |
 | `AGENTS.md` | **PRESERVE** |
 
-### Verify required skills
+### Install required skills
 
-Check that SDLC skills exist at `~/.agents/skills/<name>/SKILL.md`:
+The orchestrator depends on SDLC skills at `~/.agents/skills/`. Check if they exist:
+
+```bash
+ls ~/.agents/skills/test-driven-development/SKILL.md 2>/dev/null
+```
+
+Required skills:
 - `interview-me`, `spec-driven-development`, `planning-and-task-breakdown`, `test-driven-development`
 - `incremental-implementation`, `debugging-and-error-recovery`, `code-review-and-quality`
 - `security-and-hardening`, `git-workflow-and-versioning`
 - `frontend-ui-engineering` (if UI_PROJECT is true)
 
-If any are missing, warn:
-> "⚠️ Missing skills: [list]. Install from: git clone https://github.com/addyosmani/agent-skills.git ~/.agents/skills"
+**If ANY required skills are missing**, ask the user:
+
+```
+The orchestrator needs SDLC skills for TDD, code review, security auditing, 
+and structured planning. These are not installed yet.
+
+Install now? This will run:
+  git clone https://github.com/addyosmani/agent-skills.git ~/.agents/skills
+
+[y / n / I'll install them myself]
+```
+
+- **If yes**: Run `git clone https://github.com/addyosmani/agent-skills.git ~/.agents/skills` in the terminal. Verify the clone succeeded by checking that `~/.agents/skills/test-driven-development/SKILL.md` exists.
+- **If no**: Continue bootstrap but warn clearly:
+  > "⚠️ Skills not installed. The orchestrator will use built-in fallback guidance instead of full SDLC skills. Quality will be lower. Run `git clone https://github.com/addyosmani/agent-skills.git ~/.agents/skills` anytime to upgrade."
+- **If already installed**: Skip this step silently.
+
+**If `~/.agents/skills/` exists but is outdated** (missing some skills), offer to update:
+```bash
+cd ~/.agents/skills && git pull
+```
 
 ---
 
