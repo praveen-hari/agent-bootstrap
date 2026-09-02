@@ -1,0 +1,63 @@
+# {{FRAMEWORK}} Defect Catalog
+
+<!-- 
+  GENERATION INSTRUCTIONS (for the bootstrap agent):
+  
+  This template is used during Phase 2 (BOOTSTRAP) to produce a 
+  framework-specific defect catalog for the detected stack.
+  
+  DO NOT copy this file as-is. Generate the catalog dynamically:
+  
+  1. Replace {{FRAMEWORK}} with the detected framework name (e.g., "Go", "Rust", "Angular")
+  2. Generate 15 defect entries specific to that framework/language
+  3. Each entry must be a REAL, commonly-encountered bug pattern — not generic advice
+  4. Use the ID prefix convention below
+  5. Follow the exact table format
+  
+  ID PREFIX CONVENTION:
+    React / Next.js / Vite     → R01–R15
+    .NET / ASP.NET Core        → N01–N15
+    Python / Django / FastAPI   → P01–P15
+    Go                         → G01–G15
+    Rust                       → RS01–RS15
+    Java / Kotlin / Spring     → J01–J15
+    Angular                    → A01–A15
+    Vue                        → V01–V15
+    Svelte                     → S01–S15
+    Ruby / Rails               → RB01–RB15
+    PHP / Laravel              → PH01–PH15
+    Elixir / Phoenix           → E01–E15
+    Other                      → X01–X15
+  
+  QUALITY CRITERIA:
+    - "What goes wrong" must describe a REAL consequence (crash, data loss, security hole)
+    - "Verify" must be actionable: what to look for in code OR what config/rule to enable
+    - Prioritize: security > data corruption > crashes > resource leaks > performance > style
+    - Include at least 2 concurrency/async defects if the framework supports them
+    - Include at least 2 security defects
+    - Include at least 1 resource leak pattern
+    - Include at least 1 testing pitfall specific to the framework
+  
+  REFERENCE EXAMPLES:
+    See catalogs/examples/ for quality baseline.
+-->
+
+Use during REVIEW stage. For each finding: name the rule, check if it's enforced in config, prefer the config-level fix.
+
+| # | Defect | What goes wrong | Verify |
+|---|--------|----------------|--------|
+| {{ID_PREFIX}}01 | **...** | ... | ... |
+| {{ID_PREFIX}}02 | **...** | ... | ... |
+| {{ID_PREFIX}}03 | **...** | ... | ... |
+| {{ID_PREFIX}}04 | **...** | ... | ... |
+| {{ID_PREFIX}}05 | **...** | ... | ... |
+| {{ID_PREFIX}}06 | **...** | ... | ... |
+| {{ID_PREFIX}}07 | **...** | ... | ... |
+| {{ID_PREFIX}}08 | **...** | ... | ... |
+| {{ID_PREFIX}}09 | **...** | ... | ... |
+| {{ID_PREFIX}}10 | **...** | ... | ... |
+| {{ID_PREFIX}}11 | **...** | ... | ... |
+| {{ID_PREFIX}}12 | **...** | ... | ... |
+| {{ID_PREFIX}}13 | **...** | ... | ... |
+| {{ID_PREFIX}}14 | **...** | ... | ... |
+| {{ID_PREFIX}}15 | **...** | ... | ... |

@@ -1,0 +1,46 @@
+---
+description: "Use when: working on tasks, writing specs, planning subtasks, reviewing code, committing changes, or managing task files in .codestudio/tasks/. Covers task file format, commit conventions, and review checklist for {{PROJECT_NAME}}."
+---
+
+# Task Conventions
+
+## Task File Format
+
+Task files live at `.codestudio/tasks/<ID>.md`. Each task file has these sections:
+
+### ## What
+Acceptance criteria — what to build, scope boundaries, and testable statements.
+
+### ## Plan
+Subtask checkboxes ordered by dependency. Each subtask = one commit.
+
+### ## Review
+Findings after implementation:
+- Does the code match ## What?
+- Obvious bugs, missing edge cases, untested paths?
+- User input sanitized? Secrets hardcoded? Auth enforced?
+- Follows existing project patterns?
+- Tests covering acceptance criteria?
+
+### ## Log
+Decisions, problems, solutions. Written after task completion for future sessions.
+
+## Commit Format
+
+Atomic commits: `type(scope): description`
+
+Types: `feat`, `fix`, `test`, `refactor`, `docs`, `chore`, `ci`, `style`, `perf`
+
+## Task Commands
+
+```bash
+python3 .codestudio/task.py next              # get next task
+python3 .codestudio/task.py verify            # run all gates, capture evidence
+python3 .codestudio/task.py done              # mark complete (requires evidence)
+python3 .codestudio/task.py done --skip-gates # bypass evidence check
+python3 .codestudio/task.py block "reason"    # can't proceed
+python3 .codestudio/task.py unblock T-XXX     # try again
+python3 .codestudio/task.py add "title"       # new task
+python3 .codestudio/task.py status            # project summary
+python3 .codestudio/task.py list              # list all tasks
+```

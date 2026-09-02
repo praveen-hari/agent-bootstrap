@@ -1,0 +1,27 @@
+# Evidence Gates — {{PROJECT_NAME}}
+#
+# Source of truth for verification gates. task.py reads this file at runtime.
+# Edit gates HERE, not in project-context.md.
+#
+# GATE SCHEMA:
+#   id:        Unique short name (lint, test, build, coverage, audit, e2e, etc.)
+#   command:   Shell command to execute (run in project root)
+#   type:      How to evaluate the result
+#              - exit-code: pass if exit code == 0 (build, lint, test, format, typecheck)
+#              - coverage:  parse output for line coverage %, pass if >= threshold
+#              - audit:     parse output for high/critical vulns, pass if <= threshold
+#   threshold: Numeric threshold (0 for exit-code, 80 for coverage, 0 for audit)
+#   ratchet:   true = quality floor, can never regress (test, coverage, audit)
+#              false = always pass/fail, no floor (build, lint, format)
+#   timeout:   Optional. Seconds before the gate is killed (default: 300).
+#
+# TIER DEPTH (only include gates for tools that ACTUALLY EXIST):
+#   L0 (Unverified):    build + lint
+#   L1 (Diff-verified): build + lint + typecheck + test + coverage
+#   L2 (Verified):      L1 + audit
+#   L3 (Hardened):      L2 + mutation + perf budgets
+
+tier: {{TIER}}
+
+gates:
+{{GATES}}

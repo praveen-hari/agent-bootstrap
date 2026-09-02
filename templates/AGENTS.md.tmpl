@@ -1,0 +1,43 @@
+# AGENTS.md — {{PROJECT_NAME}}
+
+## Project Overview
+
+{{PROJECT_NAME}} uses a structured agent workflow managed via `.codestudio/`.
+
+## How to Work Here
+
+1. **Always use the task system.** Never code without a task.
+   ```bash
+   python3 .codestudio/task.py status    # see project state
+   python3 .codestudio/task.py next      # pick next task
+   ```
+
+2. **Follow the loop.** PICK → SPEC → PLAN → BUILD → VERIFY → COMMIT → REVIEW → LEARN → NEXT
+
+3. **Use the orchestrator.** Invoke `@orchestrator` for structured feature work.
+
+## Stack
+
+{{STACK}}
+
+## Conventions
+
+{{CONVENTIONS}}
+
+## Key Files
+
+| File | Purpose |
+|------|---------|
+| `.codestudio/task.py` | Task manager — all state changes go through this |
+| `.codestudio/gates.yaml` | Evidence gates — verification commands |
+| `.codestudio/project-context.md` | Architecture, conventions, boundaries |
+| `.codestudio/progress.md` | Session memory — read at start of every session |
+| `.codestudio/agents/orchestrator.agent.md` | The development loop protocol |
+
+## Rules
+
+- Never edit `.codestudio/tasks/index.json` directly
+- Run `task.py verify` before committing
+- One task active at a time
+- Commit per subtask with conventional messages
+- Write to progress.md what future sessions need to know
