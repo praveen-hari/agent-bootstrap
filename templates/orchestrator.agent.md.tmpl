@@ -111,9 +111,15 @@ Read `~/.agents/skills/git-workflow-and-versioning/SKILL.md`.
 ### 7. REVIEW
 1. Read `~/.agents/skills/code-review-and-quality/SKILL.md`
 2. Read `.codestudio/catalogs/defects-*.md` — check each rule against the diff
-3. If auth/security task → read `~/.agents/skills/security-and-hardening/SKILL.md`
-4. Write `## Review` in task file
-5. If issues: fix → re-verify → re-commit → re-review
+3. **Read gate evidence first** — `.codestudio/evidence/<TASK>/gate-summary.json`
+   - Do NOT re-check what gates already proved (coverage, lint, type errors)
+   - DO focus on what gates can't prove: logic errors, design issues, missing edge cases
+4. If the diff touches risk-gated paths (auth, migrations, API contracts) → read `~/.agents/skills/security-and-hardening/SKILL.md` and flag for human review
+5. Write `## Review` in task file. Each finding must state:
+   - The rule id (from defect catalog)
+   - Whether the rule is enforced in project config (linter, analyzer)
+   - If not enforced: the config-level fix (prevents the class, not just this instance)
+6. If issues: fix → re-verify → re-commit → re-review
 
 ### 8. LEARN
 1. Write `## Log` in the task file
@@ -131,7 +137,63 @@ Return to PICK. Continue autonomously.
 python3 .codestudio/task.py add "title" --needs T-XXX
 ```
 
-**Completion**: All `todo` done + all `backlog` evaluated + all gates pass + goals met → write `PROJECT COMPLETE` in progress.md.
+**Completion**: All `todo` done + all `backlog` evaluated (promoted or deferred with reason) + all gates pass + goals met → write `PROJECT COMPLETE` in progress.md.
+
+**Defer backlog items** you're deliberately skipping:
+```bash
+python3 .codestudio/task.py defer T-XXX "reason"
+```
+An unevaluated backlog is not completion.
+
+## The One Rule With No Exceptions
+
+> **NEVER disable, weaken, skip, narrow, or delete a test, gate, assertion, threshold, or policy in order to make a gate pass.**
+
+This covers: lowering a threshold in gates.yaml, adding `# pragma: no cover` or `istanbul ignore`, adding `eslint-disable` without justification, deleting or skipping a test, weakening an assertion to something that cannot fail.
+
+This is the cheapest path for an agent told to make things green. The ratchet blocks threshold changes; this rule blocks everything else. If a gate is genuinely wrong, report BLOCKED — changing a gate requires human involvement.
+
+## Autonomy Boundary
+
+Three lanes for decisions:
+
+### Lane 1 — DECIDE ALONE
+Internal design, naming, algorithms, data structures, test structure, refactors that don't change a public signature. If fixing a wrong decision touches one module and no consumer, decide and move.
+
+### Lane 2 — ASSUME, PIN, RECORD
+Sources are silent or ambiguous, but being wrong costs one local change:
+1. Choose the most reasonable option
+2. Write the assumption in `## What` under *Open questions*
+3. Add a test that pins the behaviour
+4. Log it in `progress.md`
+
+### Lane 3 — PARK FOR HUMAN
+Five categories only:
+- Major scope change ("this feature needs a new service")
+- Irreversible public API change
+- Licensing or legal
+- Weakening security (relaxing auth, disabling cert validation)
+- Budget regression above threshold (bundle size, latency, memory)
+
+Parking is not stopping. Write the question + your recommendation in `## Log`, mark only affected tasks blocked, and pick the next ready task.
+
+## Risk-Gated Paths
+
+Changes touching these paths require extra scrutiny during REVIEW:
+- `**/auth/**`, `**/Auth/**` — authentication and authorization
+- `**/migration*/**`, `**/Migration*/**` — database migrations
+- `**/*.csproj`, `**/package.json` — dependency changes
+- `**/.env*` — environment and secrets
+
+For risk-gated changes: use the security-and-hardening skill, document the risk in `## Review`, and note that human review is recommended.
+
+## Rollback
+
+When a sub-agent goes off course:
+```bash
+python3 .codestudio/task.py rollback T-XXX          # dry run: shows what's lost
+python3 .codestudio/task.py rollback T-XXX --force   # execute: reset to baseSha
+```
 
 ## Rules
 
@@ -158,6 +220,9 @@ python3 .codestudio/task.py reject            # review failed
 python3 .codestudio/task.py add "title"       # new task
 python3 .codestudio/task.py add "t" --needs T-001  # with dependency
 python3 .codestudio/task.py add "t" --backlog # add to backlog
+python3 .codestudio/task.py defer T-XXX "reason" # defer backlog item
+python3 .codestudio/task.py rollback T-XXX        # dry run rollback
+python3 .codestudio/task.py rollback T-XXX --force # execute rollback
 python3 .codestudio/task.py status            # project summary
 python3 .codestudio/task.py list              # list all tasks
 python3 .codestudio/task.py list --todo       # filter by status

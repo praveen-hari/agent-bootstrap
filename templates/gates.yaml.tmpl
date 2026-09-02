@@ -23,5 +23,17 @@
 
 tier: {{TIER}}
 
+# Risk-gated paths: changes here require extra review scrutiny
+# The orchestrator flags these during REVIEW and recommends human sign-off
+risk:
+  requiresExtraReview:
+    - "**/auth/**"
+    - "**/Auth/**"
+    - "**/migration*/**"
+    - "**/Migration*/**"
+    - "**/*.csproj"
+    - "**/package.json"
+    - "**/.env*"
+
 gates:
 {{GATES}}

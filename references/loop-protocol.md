@@ -122,12 +122,26 @@ The orchestrator discovers new tasks in 3 ways:
 
 New tasks are added via `task.py add` with proper dependencies.
 
+## Rollback
+
+`task.py next` records the HEAD commit as the task's `baseSha`. This enables:
+- Diff-scoped coverage (measure only lines this task changed)
+- Rollback when a sub-agent goes off course
+
+```bash
+python3 .codestudio/task.py rollback T-042          # dry run
+python3 .codestudio/task.py rollback T-042 --force   # execute
+```
+
 ## Autonomous Completion
 
 The loop doesn't stop when `todo` tasks run out:
 - **Auto-promotes** backlog items needed to meet the goal
+- **Defers** items that aren't needed: `task.py defer T-XXX "reason"`
 - **Discovers** new tasks during build and review
-- **Completes** when: all `todo` done, all `backlog` evaluated, all gates pass, original goals satisfied
+- **Completes** when: all `todo` done, all `backlog` promoted or deferred with reason, all gates pass, original goals satisfied
+
+An unevaluated backlog is not completion. A deferral without a reason is not a decision.
 
 ## Task State Machine
 
@@ -155,3 +169,5 @@ backlog → todo → active → review → done → archive
 6. **progress.md is memory.** Write what future sessions need to know.
 7. **BUILD is delegated.** Orchestrator manages state, sub-agents write code.
 8. **Sub-agents don't run task.py.** Only the orchestrator manages task state.
+9. **NEVER weaken a gate to pass it.** Do not lower thresholds, delete tests, add coverage exclusions, or suppress analyzer warnings to make gates green. If a gate is wrong, block the task.
+10. **Reviewer reads gate evidence.** Do not re-litigate what gates proved. Focus on what gates can't prove.

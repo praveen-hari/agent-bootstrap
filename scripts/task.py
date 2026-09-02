@@ -14,6 +14,8 @@ Usage:
     python3 .codestudio/task.py approve
     python3 .codestudio/task.py reject
     python3 .codestudio/task.py add "title" [--needs T-001] [--backlog]
+    python3 .codestudio/task.py defer T-003 "reason"
+    python3 .codestudio/task.py rollback T-003 [--force]
     python3 .codestudio/task.py status
     python3 .codestudio/task.py list [--status]
     python3 .codestudio/task.py info T-XXX
@@ -324,6 +326,119 @@ def parse_coverage_from_files():
     return None
 
 
+def get_diff_changed_lines(base_sha):
+    """Get set of (file, line) tuples for lines changed since base_sha.
+    
+    This enables diff-scoped coverage: only measure coverage of lines
+    this task changed, not the entire codebase. Makes coverage gates
+    enforceable on brownfield repos from day one.
+    """
+    if not base_sha:
+        return None
+    try:
+        result = subprocess.run(
+            ["git", "diff", "-U0", f"{base_sha}..HEAD"],
+            capture_output=True, text=True, timeout=30
+        )
+        if result.returncode != 0:
+            return None
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return None
+
+    changed = set()
+    current_file = None
+    for line in result.stdout.split("\n"):
+        if line.startswith("+++ b/"):
+            current_file = line[6:]
+        elif line.startswith("@@ ") and current_file:
+            # Parse hunk header: @@ -old,count +new,count @@
+            m = re.search(r'\+(\d+)(?:,(\d+))?', line)
+            if m:
+                start = int(m.group(1))
+                count = int(m.group(2)) if m.group(2) else 1
+                for i in range(start, start + count):
+                    changed.add((current_file, i))
+    return changed if changed else None
+
+
+def parse_diff_coverage(output, base_sha):
+    """Calculate coverage only for lines changed since base_sha.
+    
+    Returns diffLineRate (0.0-1.0) or None if unable to compute.
+    This is the single most important feature for brownfield repos:
+    global coverage at 4% is unenforceable. Diff coverage at 80% is
+    enforceable from day one because it only concerns code just written.
+    """
+    changed_lines = get_diff_changed_lines(base_sha)
+    if not changed_lines:
+        return None
+
+    # Try to parse coverage from files on disk
+    covered_lines = set()
+    for pattern in COVERAGE_FILE_PATTERNS:
+        matches = glob.glob(pattern, recursive=True)
+        for filepath in matches:
+            try:
+                with open(filepath, "r") as f:
+                    content = f.read()
+            except (IOError, UnicodeDecodeError):
+                continue
+            # JSON format (jest/c8 coverage-final.json)
+            if filepath.endswith(".json"):
+                try:
+                    data = json.loads(content)
+                    for src_file, file_cov in data.items():
+                        if isinstance(file_cov, dict) and "statementMap" in file_cov and "s" in file_cov:
+                            for stmt_id, count in file_cov["s"].items():
+                                if count > 0 and stmt_id in file_cov["statementMap"]:
+                                    loc = file_cov["statementMap"][stmt_id]
+                                    start_line = loc.get("start", {}).get("line", 0)
+                                    end_line = loc.get("end", {}).get("line", start_line)
+                                    for ln in range(start_line, end_line + 1):
+                                        covered_lines.add((src_file, ln))
+                except (json.JSONDecodeError, KeyError, TypeError):
+                    pass
+            # LCOV format
+            elif filepath.endswith(".info"):
+                current_sf = None
+                for line in content.split("\n"):
+                    if line.startswith("SF:"):
+                        current_sf = line[3:]
+                    elif line.startswith("DA:") and current_sf:
+                        parts = line[3:].split(",")
+                        if len(parts) >= 2 and int(parts[1]) > 0:
+                            covered_lines.add((current_sf, int(parts[0])))
+
+    if not covered_lines:
+        return None
+
+    # Intersect: of the lines this task changed, how many are covered?
+    changed_count = len(changed_lines)
+    covered_count = 0
+    uncovered = []
+    for file_line in changed_lines:
+        if file_line in covered_lines:
+            covered_count += 1
+        else:
+            uncovered.append(file_line)
+
+    if changed_count == 0:
+        return 1.0  # No changed lines = trivially covered
+
+    rate = covered_count / changed_count
+
+    # Report uncovered changed lines (actionable remediation)
+    if uncovered and rate < 1.0:
+        print(f"  [harness] Diff coverage: {covered_count}/{changed_count} changed lines covered")
+        # Show first 10 uncovered lines
+        for f, ln in sorted(uncovered)[:10]:
+            print(f"       {f}:{ln}")
+        if len(uncovered) > 10:
+            print(f"       ... and {len(uncovered) - 10} more")
+
+    return round(rate * 100, 2)
+
+
 def parse_audit(output):
     """Extract high/critical vulnerability count from audit tool outputs."""
     # npm audit --json format
@@ -359,7 +474,7 @@ def check_ratchet(gate, measured_value):
         return True, ""  # No floor recorded yet
     floor_value = floor_entry["value"]
     gate_type = gate.get("type", "exit-code")
-    if gate_type == "coverage":
+    if gate_type in ("coverage", "coverage-diff"):
         # Coverage must be >= floor
         if measured_value < floor_value:
             return False, (
@@ -396,7 +511,40 @@ def run_gate(gate, task_id):
         output = result.stdout + result.stderr
 
         # Evaluate based on gate type
-        if gate_type == "coverage":
+        if gate_type == "coverage-diff":
+            # Diff-scoped coverage: only measure lines this task changed
+            # Find baseSha from the active task
+            tasks_data = load_index()
+            active_task = get_by_id(tasks_data, task_id)
+            base_sha = active_task.get("baseSha") if active_task else None
+            if base_sha:
+                # First run the command to generate coverage data
+                measured_value = parse_diff_coverage(output, base_sha)
+                if measured_value is not None:
+                    passed = measured_value >= gate.get("threshold_value", 80)
+                    output += f"\n[harness] Diff coverage (since {base_sha[:8]}): {measured_value}%"
+                else:
+                    # Fallback to global coverage if diff parsing fails
+                    measured_value = parse_coverage(output)
+                    if measured_value is None:
+                        measured_value = parse_coverage_from_files()
+                    if measured_value is not None:
+                        passed = measured_value >= gate.get("threshold_value", 80)
+                        output += f"\n[harness] Diff coverage unavailable, using global: {measured_value}%"
+                    else:
+                        passed = False
+                        output += "\n[harness] Could not parse coverage"
+            else:
+                # No baseSha = new task system, fall back to global
+                measured_value = parse_coverage(output)
+                if measured_value is None:
+                    measured_value = parse_coverage_from_files()
+                if measured_value is not None:
+                    passed = measured_value >= gate.get("threshold_value", 80)
+                else:
+                    passed = False
+                    output += "\n[harness] No baseSha and could not parse coverage"
+        elif gate_type == "coverage":
             measured_value = parse_coverage(output)
             # Fallback: scan for coverage report files on disk
             if measured_value is None:
@@ -634,6 +782,11 @@ def cmd_next(tasks):
         needs = t.get("needs", [])
         if all(n in done_ids for n in needs):
             t["status"] = "active"
+            # Record baseSha — the commit where this task starts
+            # Used for diff-scoped coverage and rollback
+            base = git_head()
+            if base:
+                t["baseSha"] = base
             save_index(tasks)
 
             task_file = os.path.join(TASKS_DIR, f"{t['id']}.md")
@@ -645,6 +798,8 @@ def cmd_next(tasks):
             else:
                 print(f"PICKED: {t['id']} — {t['title']}")
                 print(f"FILE:   .codestudio/tasks/{t['id']}.md")
+            if base:
+                print(f"BASE:   {base[:8]} (for diff-scoped gates and rollback)")
             return
 
     # Check if any tasks are blocked or have unmet dependencies
@@ -796,6 +951,81 @@ def cmd_add(tasks, title, needs=None, backlog=False):
     print(f"ADDED [{status_label}]: {tid} — {title}")
     if needs:
         print(f"DEPENDS ON: {', '.join(needs)}")
+
+
+def cmd_defer(tasks, task_id, reason):
+    """Backlog → deferred. Requires a reason — unevaluated backlog is not completion."""
+    task = get_by_id(tasks, task_id)
+    if not task:
+        print(f"ERROR: Task {task_id} not found.")
+        sys.exit(1)
+    if task["status"] != "backlog":
+        print(f"ERROR: {task_id} is not in backlog (status: {task['status']}). Only backlog items can be deferred.")
+        sys.exit(1)
+    task["status"] = "deferred"
+    task["deferReason"] = reason
+    save_index(tasks)
+    print(f"DEFERRED: {task_id} — {task['title']}")
+    print(f"REASON: {reason}")
+
+
+def cmd_rollback(tasks, task_id, force=False):
+    """Rollback a task's changes using its baseSha. Requires --force to execute."""
+    task = get_by_id(tasks, task_id)
+    if not task:
+        print(f"ERROR: Task {task_id} not found.")
+        sys.exit(1)
+    base_sha = task.get("baseSha")
+    if not base_sha:
+        print(f"ERROR: {task_id} has no baseSha recorded. Cannot rollback.")
+        print("baseSha is recorded when a task is picked with 'task next'.")
+        sys.exit(1)
+    head = git_head()
+    if not head:
+        print("ERROR: Not a git repository. Cannot rollback.")
+        sys.exit(1)
+    if base_sha == head:
+        print(f"Nothing to rollback — HEAD is already at baseSha ({base_sha[:8]}).")
+        return
+    # Show what would be lost
+    try:
+        result = subprocess.run(
+            ["git", "log", "--oneline", f"{base_sha}..HEAD"],
+            capture_output=True, text=True, timeout=10
+        )
+        commits = result.stdout.strip()
+        if commits:
+            print(f"ROLLBACK {task_id} to {base_sha[:8]}")
+            print(f"The following commits will be LOST:")
+            for line in commits.split("\n"):
+                print(f"  {line}")
+        else:
+            print(f"No commits between baseSha and HEAD.")
+            return
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        print("ERROR: Could not read git log.")
+        sys.exit(1)
+    if not force:
+        print(f"\nDry run. To execute: task rollback {task_id} --force")
+        return
+    # Execute rollback
+    try:
+        result = subprocess.run(
+            ["git", "reset", "--hard", base_sha],
+            capture_output=True, text=True, timeout=15
+        )
+        if result.returncode == 0:
+            task["status"] = "todo"
+            task.pop("baseSha", None)
+            save_index(tasks)
+            print(f"ROLLED BACK: {task_id} to {base_sha[:8]}")
+            print(f"Task status reset to 'todo'.")
+        else:
+            print(f"ERROR: git reset failed: {result.stderr}")
+            sys.exit(1)
+    except (FileNotFoundError, subprocess.TimeoutExpired) as e:
+        print(f"ERROR: {e}")
+        sys.exit(1)
 
 
 def cmd_status(tasks):
@@ -962,9 +1192,20 @@ def main():
             print("Usage: task info T-XXX")
             sys.exit(1)
         cmd_info(tasks, sys.argv[2])
+    elif cmd == "defer":
+        if len(sys.argv) < 4:
+            print('Usage: task defer T-XXX "reason why this is deferred"')
+            sys.exit(1)
+        cmd_defer(tasks, sys.argv[2], sys.argv[3])
+    elif cmd == "rollback":
+        if len(sys.argv) < 3:
+            print("Usage: task rollback T-XXX [--force]")
+            sys.exit(1)
+        force = "--force" in sys.argv
+        cmd_rollback(tasks, sys.argv[2], force=force)
     else:
         print(f"Unknown command: {cmd}")
-        print("Commands: next, verify, done, block, unblock, review, approve, reject, add, status, list, archive, info")
+        print("Commands: next, verify, done, block, unblock, review, approve, reject, add, defer, rollback, status, list, archive, info")
         sys.exit(1)
 
 

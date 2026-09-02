@@ -155,6 +155,31 @@ gates:
 
 Only include gates for tools that are **actually detected** in the project.
 
+### Diff-Scoped Coverage (coverage-diff gate type)
+
+For existing repos, prefer `coverage-diff` over `coverage`. This measures only lines changed by the current task, not the entire codebase.
+
+**Why this matters:** Global coverage on a 15-year-old codebase might be 4%. Setting a global threshold is either unreachable (gate disabled) or meaningless (set to 4%). Diff coverage at 80% is enforceable from day one because it only concerns code just written.
+
+```yaml
+  - id: coverage-diff
+    command: "npm test -- --coverage"    # YOUR coverage command
+    type: coverage-diff                   # diff-scoped, not global
+    threshold: 80                         # of lines this task changed
+    ratchet: true
+```
+
+`task.py` intersects coverage data with `git diff <baseSha>..HEAD` to compute diff coverage. On failure, it names the exact uncovered lines:
+
+```
+FAIL coverage-diff  diffLineRate=44.44%
+     Add tests covering these changed lines:
+         src/calc.py:12
+         src/calc.py:16
+```
+
+Use `coverage-diff` at L1+. Use `coverage` (global) only at L2+ on projects with good baseline coverage.
+
 ## Project Structure Signals
 
 | Signal | Effect |

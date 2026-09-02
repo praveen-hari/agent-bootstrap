@@ -34,13 +34,16 @@ Types: `feat`, `fix`, `test`, `refactor`, `docs`, `chore`, `ci`, `style`, `perf`
 ## Task Commands
 
 ```bash
-python3 .codestudio/task.py next              # get next task
+python3 .codestudio/task.py next              # get next task (records baseSha)
 python3 .codestudio/task.py verify            # run all gates, capture evidence
 python3 .codestudio/task.py done              # mark complete (requires evidence)
 python3 .codestudio/task.py done --skip-gates # bypass evidence check
 python3 .codestudio/task.py block "reason"    # can't proceed
 python3 .codestudio/task.py unblock T-XXX     # try again
 python3 .codestudio/task.py add "title"       # new task
+python3 .codestudio/task.py defer T-XXX "why" # defer backlog item with reason
+python3 .codestudio/task.py rollback T-XXX    # dry run: show what's lost
+python3 .codestudio/task.py rollback T-XXX --force  # execute rollback
 python3 .codestudio/task.py status            # project summary
 python3 .codestudio/task.py list              # list all tasks
 ```

@@ -183,6 +183,7 @@ Create the `.codestudio/` directory with all harness files.
    Replace `{{GATES}}` with YAML gate entries from detected tools.
    
    **For existing repos**: use THEIR actual commands from package.json/Makefile/etc.
+   **For coverage**: prefer `coverage-diff` type (diff-scoped) over `coverage` (global) on brownfield repos. Diff coverage measures only lines this task changed — enforceable at 80% from day one.
    **For coverage threshold**: use current coverage level (not aspirational 80%) with ratchet UP.
    Only include gates for tools that actually exist.
    **Preserve existing if upgrade mode.**

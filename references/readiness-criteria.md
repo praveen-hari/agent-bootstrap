@@ -66,9 +66,11 @@ The tier is based on what **actually exists**, not what should exist:
 
 ### Coverage Threshold Rules
 
-- **New project (empty repo)**: Set coverage threshold to 80% (aspirational)
-- **Existing project with coverage data**: Set threshold to **current coverage level** with ratchet UP
-- **Existing project without coverage data**: Set threshold to 0% with ratchet UP (first run establishes the floor)
+- **New project (empty repo)**: Set coverage threshold to 80% (aspirational). Use `coverage-diff` gate type.
+- **Existing project with coverage data**: Use `coverage-diff` at 80% (diff-scoped). Set global `coverage` threshold to current level with ratchet UP.
+- **Existing project without coverage data**: Use `coverage-diff` at 80%. Global coverage starts at 0% with ratchet UP.
+
+**Prefer `coverage-diff` over `coverage` for brownfield repos.** Diff coverage asks "of the lines this task changed, how many are covered?" — enforceable at 80% from day one on any codebase. Global coverage asks "what % of the entire codebase is covered?" — often unenforceable.
 
 The ratchet means coverage can only go up from whatever it is today. We never demand instant perfection from existing codebases.
 
