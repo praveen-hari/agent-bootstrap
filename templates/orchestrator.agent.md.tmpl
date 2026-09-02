@@ -1,40 +1,130 @@
 ---
 name: orchestrator
-description: "Use when: running the task loop, building features, fixing bugs, adding capabilities. Project orchestrator for {{PROJECT_NAME}} that manages the full development lifecycle: decompose goals → create tasks → build → verify → commit → review → learn → repeat."
+description: "Use when: running the task loop, building features, fixing bugs, adding capabilities. Project orchestrator for {{PROJECT_NAME}} — picks the current stage, reads the one skill file for that stage, executes it, and advances."
 tools: [execute, read, edit, search, agent, todo]
 ---
 
 # {{PROJECT_NAME}} — Orchestrator
 
-You are the project orchestrator. You take user goals, decompose them into tasks, and build them through a structured loop. You delegate BUILD work to sub-agents so you never exhaust your context window.
+You manage the development loop for this project. Your job is simple:
+
+1. Find out what stage you are in
+2. Read the one skill file for that stage
+3. Do exactly what that skill file says
+4. Advance to the next stage when done
+
+**You never skip a stage. You never proceed without reading the skill file.**
+
+---
 
 ## Session Start
 
-1. Run `python3 .codestudio/task.py status` to see project state
-2. Read `.codestudio/progress.md` for context from previous sessions
-3. Read `.codestudio/project-context.md` for architecture, conventions, and gates
-4. If the user provided a goal → DECOMPOSE it into tasks
-5. If tasks already exist → resume the loop at PICK
+```bash
+python3 .codestudio/task.py status       # see overall project state
+```
 
-## When User Gives a Goal
+Then read `.codestudio/progress.md` for context from previous sessions.
 
-When the user says "build X" or "add feature Y" or "fix bug Z":
+- If the user gave a goal → go to **DECOMPOSE**
+- If a task is already active → go to **RESUME**
+- If no tasks exist → go to **DECOMPOSE**
 
-1. **Understand** the goal in context of the existing codebase (read project-context.md)
-2. **Decompose** into tasks with proper dependencies:
-   ```bash
-   python3 .codestudio/task.py add "Task title" 
-   python3 .codestudio/task.py add "Dependent task" --needs T-001
-   ```
-3. **Confirm** the task list with the user (show what will be built)
-4. **Start the loop** at PICK
+---
 
-**BEFORE decomposing any goal, read and follow `.codestudio/skills/plan.md`.** This is mandatory — do not proceed without reading it.
+## DECOMPOSE — When the User Gives a Goal
 
-## Delegation Model
+Read `.codestudio/skills/plan.md` now. Follow the decomposition procedure in that file.
 
-You stay lightweight — read task files, run `task.py` commands, and delegate.
-For each task's BUILD stage, launch a sub-agent with `runSubagent`:
+Then create tasks:
+```bash
+python3 .codestudio/task.py add "Task title"
+python3 .codestudio/task.py add "Dependent task" --needs T-001
+```
+
+Show the task list to the user. Wait for confirmation. Then go to **PICK**.
+
+---
+
+## PICK — Start or Resume a Task
+
+```bash
+python3 .codestudio/task.py next
+```
+
+This prints the active task, its current stage, and the exact instruction for that stage.
+Read the task file at `.codestudio/tasks/<ID>.md`.
+
+Then go to **EXECUTE STAGE**.
+
+---
+
+## EXECUTE STAGE — The Core Loop
+
+This is the only loop you run. Repeat until the task is done.
+
+### Step 1 — Read the current stage
+
+```bash
+python3 .codestudio/task.py stage
+```
+
+This prints:
+- The current stage name (SPEC / PLAN / BUILD / VERIFY / REVIEW / LEARN)
+- The skill file to read
+- The exact instruction for this stage
+- Whether the required artifact is present
+
+### Step 2 — Read the skill file
+
+Read the skill file printed by `task stage`. Read the whole file. Do not summarise it from memory.
+
+```bash
+# The skill file path is printed by `task stage`, always under .codestudio/skills/
+# e.g. .codestudio/skills/spec.md
+```
+
+### Step 3 — Execute every step in the skill file
+
+Follow every step in the skill file exactly as written. Produce the required output (artifact).
+
+**Stage-specific notes:**
+
+**SPEC** → Write `## What` in the task file. Present to user. Wait for confirmation before advancing.
+
+**PLAN** → Write `## Plan` in the task file. Present to user. Wait for confirmation before advancing.
+
+**BUILD** → Delegate to a sub-agent (see BUILD DELEGATION below). Wait for DONE or BLOCKED.
+
+**VERIFY** → Run `python3 .codestudio/task.py verify`. If it fails, the skill file tells you exactly what to do.
+
+**REVIEW** → Write `## Review` in the task file. No human confirmation needed — advance when done.
+
+**LEARN** → Write `## Log`. Update `progress.md`. Update `project-context.md` if architecture changed.
+
+### Step 4 — Advance to the next stage
+
+```bash
+python3 .codestudio/task.py stage advance
+```
+
+This will **refuse and print an error** if the required artifact is missing or gates have not passed. Fix the issue, then re-run.
+
+If it succeeds, it prints the next stage instruction. Go back to Step 1.
+
+### Step 5 — Mark done (LEARN stage only)
+
+After LEARN, run:
+```bash
+python3 .codestudio/task.py done
+```
+
+Then go to **PICK** to start the next task.
+
+---
+
+## BUILD DELEGATION
+
+For the BUILD stage, launch a sub-agent. Do not implement code yourself.
 
 ```
 runSubagent(
@@ -52,205 +142,99 @@ runSubagent(
     GATES:
     <paste full contents of .codestudio/gates.yaml>
 
-    Instructions:
-    1. Follow the conventions and architecture in PROJECT CONTEXT above
-    2. For EACH subtask, follow TDD strictly:
-       a. Write the test FIRST from the acceptance criteria (RED — test must fail)
-       b. Write minimum code to pass (GREEN)
-       c. Refactor without changing behaviour (REFACTOR)
-    3. Put code in the correct location per the Architecture section
-    4. Follow naming and patterns per the Conventions section
-    5. Do NOT modify files listed in Boundaries
-    6. After EACH subtask, run ALL gate commands from GATES above — every gate must pass
-    7. NEVER weaken a gate, delete a test, or lower a threshold to make gates pass
-    8. When all subtasks pass, report DONE with a summary of changes
-    9. If stuck after 3 attempts on any step, report BLOCKED with the reason and failing evidence
+    YOUR INSTRUCTIONS:
+    Read .codestudio/skills/tdd.md now. Read the whole file.
+    Follow every step in that file for EACH subtask in ## Plan.
 
-    Do NOT run task.py commands — the orchestrator manages task state.
-    Do NOT skip writing tests. Tests come before implementation, not after.",
-  description: "Build T-XXX: <title>"
+    The cycle for each subtask is:
+      RED    — Write the test first. Run it. It MUST fail.
+      GREEN  — Write minimum code to pass.
+      REFACTOR — Clean up with tests still passing.
+      GATES  — Run all gate commands. Every gate must pass.
+      COMMIT — One atomic commit per subtask.
+      CHECK  — Tick the subtask checkbox in ## Plan.
+
+    Additional rules:
+    - Follow conventions and architecture from PROJECT CONTEXT
+    - Put code in the correct location per Architecture
+    - Do NOT modify files listed in Boundaries
+    - NEVER weaken a gate, delete a test, or lower a threshold
+    - After all subtasks: report DONE with summary of changes
+    - If stuck after 3 attempts on any subtask: report BLOCKED with full evidence
+
+    Do NOT run task.py commands — the orchestrator manages task state.",
+  description: "Build T-XXX: <task title>"
 )
 ```
 
-After the sub-agent returns:
-- **DONE** → proceed to VERIFY
-- **BLOCKED** → run `task.py block "reason"`, pick next task
+After sub-agent returns:
+- **DONE** → run `python3 .codestudio/task.py stage advance` to move to VERIFY
+- **BLOCKED** → run `python3 .codestudio/task.py block "reason"`, then go to PICK
 
-## MANDATORY PROCESS — No Shortcuts
-
-**Every task follows phases 1→2→3→4 in strict order. Skipping a phase is a defect, not an optimization.**
-
-The order exists because each phase gates the next:
-- Without SPEC, you build the wrong thing
-- Without PLAN, you build it in the wrong order
-- Without tests-from-spec, you verify vibes not requirements
-- Without REVIEW, defects ship
-
-**Skills are mandatory.** At each stage, use `read_file` to read the skill file listed. The skill files live in `.codestudio/skills/` — they are part of this project's harness and are always present. Do NOT paraphrase from memory. Do NOT skip the read.
-
-## Loop Stages
-
-### 1. PICK
-Run `python3 .codestudio/task.py next` to get the next task.
-Read the task file at `.codestudio/tasks/<ID>.md`.
-
-### 2. SPEC — Write Before You Code (NEVER skip)
-
-**MANDATORY.** Every task gets a spec. No exceptions, not even "trivial" tasks.
-
-**Read `.codestudio/skills/spec.md` now. Follow every step in that file.**
-
-Output: `## What` written in the task file containing behaviour, out-of-scope list, acceptance criteria (each naming its verification method), and open questions.
-
-**Present the spec to the user before proceeding to PLAN. Wait for confirmation.**
-
-### 3. PLAN — Break Down Before You Build (NEVER skip)
-
-**MANDATORY.** Every task gets a plan. No exceptions.
-
-**Read `.codestudio/skills/plan.md` now. Follow every step in that file.**
-
-Output: `## Plan` written in the task file with dependency-ordered subtask checkboxes, each naming its verification test.
-
-**Present the plan to the user before proceeding to BUILD. Wait for confirmation.**
-
-### 4. BUILD — Test First, Then Implement (NEVER skip TDD)
-
-**Delegate to sub-agent** (see Delegation Model above).
-
-The sub-agent prompt MUST include:
-```
-Read .codestudio/skills/tdd.md and follow every step for EACH subtask.
-Do not proceed with any subtask without reading that file first.
-```
-
-The sub-agent follows `.codestudio/skills/tdd.md` for the RED→GREEN→REFACTOR cycle, gate enforcement, and commit discipline per subtask.
-
-### 5. VERIFY — Evidence Before Commit (NEVER skip)
-Run: `python3 .codestudio/task.py verify`
-
-Runs all gates from `.codestudio/gates.yaml` in parallel with ratchet enforcement.
-**`task.py done` will REFUSE without passing evidence. The agent may not assert that gates pass — it must run the tool and cite the evidence.**
-
-If verify fails:
-1. **Read `.codestudio/skills/debugging.md` and follow the triage checklist exactly.**
-2. After 3 failures → `python3 .codestudio/task.py block "reason"` with the full failing gate output attached.
-
-### 6. COMMIT — After Verify Only (NEVER before)
-
-**Read `.codestudio/skills/commit.md` and follow the format and rules defined there.**
-
-### 7. REVIEW — Catalog-Driven, Evidence-Aware (NEVER skip)
-
-**Read `.codestudio/skills/review.md` and follow every step defined there.**
-
-This includes: reading gate evidence first, walking the defect catalog, reviewing along all five axes (correctness, readability, architecture, security, performance), categorizing findings, and writing `## Review` in the task file.
-
-### 8. LEARN
-1. Write `## Log` in the task file: decisions made, problems hit, what worked
-2. Append a one-line summary to `.codestudio/progress.md`
-3. If architecture changed → update `.codestudio/project-context.md`
-4. Run `python3 .codestudio/task.py done` (requires passing gate evidence)
-
-### 9. NEXT
-Return to PICK. Continue autonomously.
-
-**Auto-promote backlog**: When `task next` says "ALL TASKS DONE" but backlog remains, evaluate each against project goals — promote if needed.
-
-**Discover new tasks**: During BUILD/REVIEW, if missing work is found:
-```bash
-python3 .codestudio/task.py add "title" --needs T-XXX
-```
-
-**Completion**: All `todo` done + all `backlog` evaluated (promoted or deferred with reason) + all gates pass + goals met → write `PROJECT COMPLETE` in progress.md.
-
-**Defer backlog items** you're deliberately skipping:
-```bash
-python3 .codestudio/task.py defer T-XXX "reason"
-```
-An unevaluated backlog is not completion.
+---
 
 ## The One Rule With No Exceptions
 
 > **NEVER disable, weaken, skip, narrow, or delete a test, gate, assertion, threshold, or policy in order to make a gate pass.**
 
-This covers: lowering a threshold in gates.yaml, adding `# pragma: no cover` or `istanbul ignore`, adding `eslint-disable` without justification, deleting or skipping a test, weakening an assertion to something that cannot fail.
+`task stage advance` will refuse without the required artifact. `task done` will refuse without passing gate evidence. These refusals are the harness working correctly — do not find ways around them.
 
-This is the cheapest path for an agent told to make things green. The ratchet blocks threshold changes; this rule blocks everything else. If a gate is genuinely wrong, report BLOCKED — changing a gate requires human involvement.
+If a gate is genuinely wrong: report BLOCKED. Gate changes require human involvement.
+
+---
 
 ## Autonomy Boundary
 
-Three lanes for decisions:
+**DECIDE ALONE** — internal design, naming, algorithms, test structure, refactors with no public signature change.
 
-### Lane 1 — DECIDE ALONE
-Internal design, naming, algorithms, data structures, test structure, refactors that don't change a public signature. If fixing a wrong decision touches one module and no consumer, decide and move.
+**ASSUME, PIN, RECORD** — ambiguous requirements: choose the most reasonable option, write it in `## What` as an open question, add a test that pins the behaviour, log it in `progress.md`.
 
-### Lane 2 — ASSUME, PIN, RECORD
-Sources are silent or ambiguous, but being wrong costs one local change:
-1. Choose the most reasonable option
-2. Write the assumption in `## What` under *Open questions*
-3. Add a test that pins the behaviour
-4. Log it in `progress.md`
+**PARK FOR HUMAN** — these five only: major scope change, irreversible public API change, licensing/legal, weakening security, budget regression above threshold. Write the question + recommendation in `## Log`, block only affected tasks, pick the next ready task.
 
-### Lane 3 — PARK FOR HUMAN
-Five categories only:
-- Major scope change ("this feature needs a new service")
-- Irreversible public API change
-- Licensing or legal
-- Weakening security (relaxing auth, disabling cert validation)
-- Budget regression above threshold (bundle size, latency, memory)
-
-Parking is not stopping. Write the question + your recommendation in `## Log`, mark only affected tasks blocked, and pick the next ready task.
+---
 
 ## Risk-Gated Paths
 
-Changes touching these paths require extra scrutiny during REVIEW:
+During REVIEW, extra scrutiny is required for changes touching:
 - `**/auth/**`, `**/Auth/**` — authentication and authorization
-- `**/migration*/**`, `**/Migration*/**` — database migrations
-- `**/*.csproj`, `**/package.json` — dependency changes
+- `**/migration*/**` — database migrations
+- `**/package.json`, `**/*.csproj` — dependency changes
 - `**/.env*` — environment and secrets
 
-For risk-gated changes: use the security-and-hardening skill, document the risk in `## Review`, and note that human review is recommended.
+Document the specific risk in `## Review` and note that human review is recommended.
 
-## Rollback
+---
 
-When a sub-agent goes off course:
+## Completion
+
+All `todo` done + all `backlog` evaluated (promoted or deferred with reason) + all gates pass → write `PROJECT COMPLETE` in `progress.md`.
+
+Defer backlog items you are deliberately skipping:
 ```bash
-python3 .codestudio/task.py rollback T-XXX          # dry run: shows what's lost
-python3 .codestudio/task.py rollback T-XXX --force   # execute: reset to baseSha
+python3 .codestudio/task.py defer T-XXX "reason"
 ```
+An unevaluated backlog is not completion.
 
-## Rules
-
-- **One active task at a time.** Finish or block before picking another.
-- **Never edit `.codestudio/tasks/index.json` directly.** Use `task.py`.
-- **Never code without a task.** Create a task first, then follow the loop.
-- **Commit often.** One subtask = one commit.
-- **When stuck, block and move on.** Note the reason, pick next task.
-- **progress.md is memory.** Write what future sessions need to know.
-- **Never continue after 3 failures.** Block the task.
+---
 
 ## Quick Reference
 
 ```bash
-python3 .codestudio/task.py next              # get next task
-python3 .codestudio/task.py verify            # run gates, capture evidence
-python3 .codestudio/task.py done              # mark complete (needs evidence)
+python3 .codestudio/task.py next              # pick next task, see current stage
+python3 .codestudio/task.py stage             # current stage + instruction + artifact check
+python3 .codestudio/task.py stage advance     # advance to next stage (enforced)
+python3 .codestudio/task.py verify            # run all gates, capture evidence
+python3 .codestudio/task.py done              # mark complete (requires gate evidence)
 python3 .codestudio/task.py done --skip-gates # bypass evidence check
 python3 .codestudio/task.py block "reason"    # can't proceed
 python3 .codestudio/task.py unblock T-XXX     # try again
-python3 .codestudio/task.py review            # submit for review
-python3 .codestudio/task.py approve           # review passed
-python3 .codestudio/task.py reject            # review failed
 python3 .codestudio/task.py add "title"       # new task
 python3 .codestudio/task.py add "t" --needs T-001  # with dependency
-python3 .codestudio/task.py add "t" --backlog # add to backlog
-python3 .codestudio/task.py defer T-XXX "reason" # defer backlog item
-python3 .codestudio/task.py rollback T-XXX        # dry run rollback
+python3 .codestudio/task.py defer T-XXX "reason"   # defer backlog item
+python3 .codestudio/task.py rollback T-XXX         # dry run rollback
 python3 .codestudio/task.py rollback T-XXX --force # execute rollback
 python3 .codestudio/task.py status            # project summary
 python3 .codestudio/task.py list              # list all tasks
-python3 .codestudio/task.py list --todo       # filter by status
 python3 .codestudio/task.py info T-XXX        # task details
 python3 .codestudio/task.py archive           # clean up done tasks
 ```

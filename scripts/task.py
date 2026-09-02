@@ -16,6 +16,8 @@ Usage:
     python3 .codestudio/task.py add "title" [--needs T-001] [--backlog]
     python3 .codestudio/task.py defer T-003 "reason"
     python3 .codestudio/task.py rollback T-003 [--force]
+    python3 .codestudio/task.py stage
+    python3 .codestudio/task.py stage advance
     python3 .codestudio/task.py status
     python3 .codestudio/task.py list [--status]
     python3 .codestudio/task.py info T-XXX
@@ -761,6 +763,163 @@ def check_evidence(task_id):
     )
 
 
+# ── Stage Machine ────────────────────────────────────────────────────
+
+# Ordered SDLC stages for the loop. Each entry defines:
+#   name       - stage identifier written into task index
+#   skill      - skill file the agent must read (.codestudio/skills/<skill>.md)
+#   artifact   - what must exist in the task file before advancing (regex on ## sections)
+#   instruction - one-line directive printed to the agent
+STAGES = [
+    {
+        "name": "SPEC",
+        "skill": "spec.md",
+        "artifact": r"## What",
+        "instruction": "Read .codestudio/skills/spec.md. Follow every step. Write ## What in the task file. Present to user and wait for confirmation.",
+    },
+    {
+        "name": "PLAN",
+        "skill": "plan.md",
+        "artifact": r"## Plan",
+        "instruction": "Read .codestudio/skills/plan.md. Follow every step. Write ## Plan in the task file. Present to user and wait for confirmation.",
+    },
+    {
+        "name": "BUILD",
+        "skill": "tdd.md",
+        "artifact": None,  # Enforced by VERIFY — BUILD output is code, not a doc section
+        "instruction": "Read .codestudio/skills/tdd.md. Follow every step for EACH subtask: RED → GREEN → REFACTOR → GATES → COMMIT. Report DONE or BLOCKED.",
+    },
+    {
+        "name": "VERIFY",
+        "skill": "debugging.md",
+        "artifact": None,  # Enforced by gate-summary.json existing with verdict=pass
+        "instruction": "Run: python3 .codestudio/task.py verify. If gates fail, read .codestudio/skills/debugging.md and follow the triage checklist.",
+    },
+    {
+        "name": "REVIEW",
+        "skill": "review.md",
+        "artifact": r"## Review",
+        "instruction": "Read .codestudio/skills/review.md. Follow every step. Write ## Review in the task file.",
+    },
+    {
+        "name": "LEARN",
+        "skill": None,
+        "artifact": r"## Log",
+        "instruction": "Write ## Log in the task file. Append one-line summary to .codestudio/progress.md. Update project-context.md if architecture changed. Run: python3 .codestudio/task.py done.",
+    },
+]
+
+STAGE_NAMES = [s["name"] for s in STAGES]
+
+
+def get_stage_def(name):
+    for s in STAGES:
+        if s["name"] == name:
+            return s
+    return None
+
+
+def check_artifact(task_id, artifact_pattern):
+    """Check if a required artifact (## section) exists in the task file."""
+    if not artifact_pattern:
+        return True, ""
+    task_file = os.path.join(TASKS_DIR, f"{task_id}.md")
+    if not os.path.exists(task_file):
+        return False, f"Task file .codestudio/tasks/{task_id}.md does not exist."
+    with open(task_file, "r") as f:
+        content = f.read()
+    if re.search(artifact_pattern, content, re.MULTILINE):
+        # Also check it has real content (not just the header)
+        match = re.search(artifact_pattern + r"\s*\n+(.+)", content, re.MULTILINE | re.DOTALL)
+        if match and match.group(1).strip():
+            return True, ""
+        return False, f"Section '{artifact_pattern}' exists but appears empty. Complete it before advancing."
+    return False, f"Required section '{artifact_pattern}' not found in task file. Complete this stage before advancing."
+
+
+def cmd_stage(tasks, advance=False):
+    """Show current SDLC stage or advance to next (with artifact check)."""
+    active = get_active(tasks)
+    if not active:
+        print("ERROR: No active task. Run 'task next' first.")
+        sys.exit(1)
+
+    task_id = active["id"]
+    current_stage = active.get("stage", "SPEC")  # Default to SPEC for new tasks
+
+    if not advance:
+        # Just report current stage and what the agent must do
+        stage_def = get_stage_def(current_stage)
+        if not stage_def:
+            print(f"STAGE: {current_stage} (unknown — check task index)")
+            return
+
+        idx = STAGE_NAMES.index(current_stage)
+        print(f"TASK:    {task_id} — {active['title']}")
+        print(f"STAGE:   {current_stage} ({idx + 1}/{len(STAGES)})")
+        if stage_def["skill"]:
+            print(f"SKILL:   .codestudio/skills/{stage_def['skill']}")
+        print(f"")
+        print(f"INSTRUCTION:")
+        print(f"  {stage_def['instruction']}")
+        if stage_def["artifact"]:
+            print(f"")
+            print(f"REQUIRED ARTIFACT BEFORE ADVANCING:")
+            ok, msg = check_artifact(task_id, stage_def["artifact"])
+            if ok:
+                print(f"  ✅ {stage_def['artifact']} — present")
+            else:
+                print(f"  ❌ {stage_def['artifact']} — MISSING")
+                print(f"     {msg}")
+        return
+
+    # Advance: check artifact, then move to next stage
+    stage_def = get_stage_def(current_stage)
+    if not stage_def:
+        print(f"ERROR: Unknown stage '{current_stage}'. Check task index.")
+        sys.exit(1)
+
+    # Special check for VERIFY stage: require passing gate evidence
+    if current_stage == "VERIFY":
+        ok, msg = check_evidence(task_id)
+        if not ok:
+            print(f"BLOCKED: Cannot advance from VERIFY without passing gate evidence.")
+            print(f"  {msg}")
+            print(f"  Run: python3 .codestudio/task.py verify")
+            sys.exit(1)
+
+    # Check artifact for all other stages
+    if stage_def["artifact"]:
+        ok, msg = check_artifact(task_id, stage_def["artifact"])
+        if not ok:
+            print(f"BLOCKED: Cannot advance from {current_stage}.")
+            print(f"  {msg}")
+            print(f"  Complete the stage output, then re-run: task stage advance")
+            sys.exit(1)
+
+    # Find next stage
+    idx = STAGE_NAMES.index(current_stage)
+    if idx + 1 >= len(STAGES):
+        print(f"STAGE:   {current_stage} is the final stage.")
+        print(f"  Run: python3 .codestudio/task.py done")
+        return
+
+    next_stage = STAGE_NAMES[idx + 1]
+    next_def = get_stage_def(next_stage)
+
+    active["stage"] = next_stage
+    save_index(tasks)
+
+    print(f"ADVANCED: {current_stage} → {next_stage}")
+    print(f"TASK:     {task_id} — {active['title']}")
+    print(f"")
+    print(f"NEXT INSTRUCTION:")
+    print(f"  {next_def['instruction']}")
+    if next_def["skill"]:
+        print(f"")
+        print(f"READ NOW: .codestudio/skills/{next_def['skill']}")
+
+
 # ── Commands ──────────────────────────────────────────────────────────
 
 
@@ -790,6 +949,10 @@ def cmd_next(tasks):
             save_index(tasks)
 
             task_file = os.path.join(TASKS_DIR, f"{t['id']}.md")
+            # Ensure stage is set on tasks created before stage tracking
+            if "stage" not in t:
+                t["stage"] = "SPEC"
+
             if not os.path.exists(task_file):
                 with open(task_file, "w") as f:
                     f.write(f"# {t['title']}\n\n## What\n\n")
@@ -800,6 +963,13 @@ def cmd_next(tasks):
                 print(f"FILE:   .codestudio/tasks/{t['id']}.md")
             if base:
                 print(f"BASE:   {base[:8]} (for diff-scoped gates and rollback)")
+
+            # Print stage instruction immediately so agent knows what to do next
+            stage_def = get_stage_def(t.get("stage", "SPEC"))
+            if stage_def:
+                print(f"STAGE:  {t['stage']} — {stage_def['instruction']}")
+                if stage_def["skill"]:
+                    print(f"READ:   .codestudio/skills/{stage_def['skill']}")
             return
 
     # Check if any tasks are blocked or have unmet dependencies
@@ -943,7 +1113,8 @@ def cmd_add(tasks, title, needs=None, backlog=False):
         "id": tid,
         "title": title,
         "status": "backlog" if backlog else "todo",
-        "needs": needs or []
+        "needs": needs or [],
+        "stage": "SPEC"
     }
     tasks.append(task)
     save_index(tasks)
@@ -1140,6 +1311,9 @@ def main():
 
     if cmd == "next":
         cmd_next(tasks)
+    elif cmd == "stage":
+        advance = len(sys.argv) > 2 and sys.argv[2] == "advance"
+        cmd_stage(tasks, advance=advance)
     elif cmd == "verify":
         cmd_verify(tasks)
     elif cmd == "done":
@@ -1205,7 +1379,7 @@ def main():
         cmd_rollback(tasks, sys.argv[2], force=force)
     else:
         print(f"Unknown command: {cmd}")
-        print("Commands: next, verify, done, block, unblock, review, approve, reject, add, defer, rollback, status, list, archive, info")
+        print("Commands: next, stage, verify, done, block, unblock, review, approve, reject, add, defer, rollback, status, list, archive, info")
         sys.exit(1)
 
 
