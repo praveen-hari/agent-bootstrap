@@ -948,7 +948,12 @@ def cmd_next(tasks):
         print(f"ACTIVE: {active['id']} — {active['title']}")
         if os.path.exists(task_file):
             print(f"FILE:   .codestudio/tasks/{active['id']}.md")
-        # Always reprint stage instruction on resume so agent has full context
+        # Always reprint type/workflow and stage instruction on resume
+        task_type = active.get("type")
+        if task_type:
+            print(f"TYPE:   {task_type} — read .codestudio/workflows/{task_type}.md")
+        else:
+            print(f"TYPE:   (not set) — set with: task type {active['id']} <type>")
         current_stage = active.get("stage", "SPEC")
         stage_def = get_stage_def(current_stage)
         if stage_def:
@@ -990,7 +995,12 @@ def cmd_next(tasks):
             if base:
                 print(f"BASE:   {base[:8]} (for diff-scoped gates and rollback)")
 
-            # Print stage instruction immediately so agent knows what to do next
+            # Print type/workflow and stage instruction immediately
+            task_type = t.get("type")
+            if task_type:
+                print(f"TYPE:   {task_type} — read .codestudio/workflows/{task_type}.md")
+            else:
+                print(f"TYPE:   (not set) — set with: task type {t['id']} <type>")
             stage_def = get_stage_def(t.get("stage", "SPEC"))
             if stage_def:
                 print(f"STAGE:  {t['stage']} — {stage_def['instruction']}")
@@ -1142,22 +1152,57 @@ def cmd_reject(tasks):
     print(f"Fix issues in ## Review, then 'task review' again.")
 
 
-def cmd_add(tasks, title, needs=None, backlog=False):
-    """Add a new task."""
+VALID_TASK_TYPES = (
+    "feature", "bugfix", "refactor", "api-change",
+    "security", "performance", "dependency-upgrade",
+    "test-backfill", "incident"
+)
+
+
+def _set_task_type(tasks, task_id, task_type):
+    """Set or update the type field on an existing task."""
+    task = get_by_id(tasks, task_id)
+    if not task:
+        print(f"ERROR: Task {task_id} not found.")
+        sys.exit(1)
+    if task_type not in VALID_TASK_TYPES:
+        print(f"ERROR: Unknown type '{task_type}'.")
+        print(f"  Valid types: {', '.join(VALID_TASK_TYPES)}")
+        sys.exit(1)
+    task["type"] = task_type
+    save_index(tasks)
+    print(f"TYPE SET: {task_id} — {task_type}")
+    print(f"  Workflow: .codestudio/workflows/{task_type}.md")
+
+
+def cmd_add(tasks, title, needs=None, backlog=False, task_type=None):
+    """Add a new task with an optional type that routes to a workflow file."""
+    if task_type and task_type not in VALID_TASK_TYPES:
+        print(f"WARNING: Unknown task type '{task_type}'.")
+        print(f"  Valid types: {', '.join(VALID_TASK_TYPES)}")
+        print(f"  Proceeding without a type — add it manually to the task file.")
+        task_type = None
     tid = next_id(tasks)
-    task = {
+    record = {
         "id": tid,
         "title": title,
         "status": "backlog" if backlog else "todo",
         "needs": needs or [],
         "stage": "SPEC"
     }
-    tasks.append(task)
+    if task_type:
+        record["type"] = task_type
+    tasks.append(record)
     save_index(tasks)
     status_label = "BACKLOG" if backlog else "TODO"
     print(f"ADDED [{status_label}]: {tid} — {title}")
+    if task_type:
+        print(f"TYPE:  {task_type} — read .codestudio/workflows/{task_type}.md")
+    else:
+        print(f"TYPE:  (not set) — add with: task type {tid} <type>")
+        print(f"  Types: {', '.join(VALID_TASK_TYPES)}")
     if needs:
-        print(f"DEPENDS ON: {', '.join(needs)}")
+        print(f"NEEDS: {', '.join(needs)}")
 
 
 def cmd_defer(tasks, task_id, reason):
@@ -1347,6 +1392,12 @@ def main():
 
     if cmd == "next":
         cmd_next(tasks)
+    elif cmd == "type":
+        if len(sys.argv) < 4:
+            print("Usage: task type T-XXX <type>")
+            print(f"  Types: {', '.join(VALID_TASK_TYPES)}")
+            sys.exit(1)
+        _set_task_type(tasks, sys.argv[2], sys.argv[3])
     elif cmd == "stage":
         advance = len(sys.argv) > 2 and sys.argv[2] == "advance"
         cmd_stage(tasks, advance=advance)
@@ -1377,6 +1428,7 @@ def main():
         title = sys.argv[2]
         needs = []
         backlog = False
+        task_type = None
         i = 3
         while i < len(sys.argv):
             if sys.argv[i] == "--needs" and i + 1 < len(sys.argv):
@@ -1385,9 +1437,12 @@ def main():
             elif sys.argv[i] == "--backlog":
                 backlog = True
                 i += 1
+            elif sys.argv[i] == "--type" and i + 1 < len(sys.argv):
+                task_type = sys.argv[i + 1]
+                i += 2
             else:
                 i += 1
-        cmd_add(tasks, title, needs, backlog)
+        cmd_add(tasks, title, needs, backlog, task_type)
     elif cmd == "status":
         cmd_status(tasks)
     elif cmd == "list":
@@ -1415,7 +1470,7 @@ def main():
         cmd_rollback(tasks, sys.argv[2], force=force)
     else:
         print(f"Unknown command: {cmd}")
-        print("Commands: next, stage, verify, done, block, unblock, review, approve, reject, add, defer, rollback, status, list, archive, info")
+        print("Commands: next, stage, type, verify, done, block, unblock, review, approve, reject, add, defer, rollback, status, list, archive, info")
         sys.exit(1)
 
 

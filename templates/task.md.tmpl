@@ -1,0 +1,55 @@
+# {{ID}} — {{TITLE}}
+
+**Type**: {{TYPE}}
+**Workflow**: `.codestudio/workflows/{{TYPE}}.md`
+**Base**: {{BASE_SHA}}
+
+## What
+
+**Behaviour:**
+<!-- What the system does that it did not do before. One sentence per change. -->
+
+**Explicitly out of scope:**
+<!-- At least two things this task does NOT cover. -->
+-
+-
+
+**Acceptance criteria:**
+<!-- Each criterion names the test or gate command that will verify it. -->
+<!-- ❌ "Handles errors gracefully" — not verifiable -->
+<!-- ✅ "Returns 400 with ProblemDetails when orderId is malformed — test: OrderController_Returns400_WhenOrderIdMalformed" -->
+- [ ] — verified by: `<test name or gate command>`
+
+**Sources consulted** (rank per `.codestudio/skills/oracles.md`):
+<!-- Cite the source that decided, not the one you found first. -->
+<!-- Do not rely on recall for framework behaviour — look it up and cite it. -->
+- — rank  — decided:
+
+**Open questions:**
+<!-- Any ambiguity gets an assumption + pinning test. Not a silent decision. -->
+<!-- Format: <question> → assumed: <choice> → pinned by: <test> -->
+- None
+
+## Plan
+
+<!-- Dependency-ordered subtask checkboxes. One commit each. Each names its test. -->
+<!-- If you cannot name the test, return to SPEC — the criterion is not concrete enough. -->
+- [ ]  — test: `<test name>`
+
+## Evidence
+
+<!-- Gate results. Cite artifacts. Never write a conclusion no tool produced. -->
+| Gate | Verdict | Measured | Artifact |
+|------|---------|----------|----------|
+
+**Not run:** none
+
+## Review
+
+<!-- Findings from review. For each: rule id, severity, whether enforced in config. -->
+<!-- "No issues" is a valid entry — but it must be written, not omitted. -->
+
+## Log
+
+<!-- Decisions made, approaches tried, dead ends hit, what a future session needs. -->
+<!-- Dead ends matter most — record what was tried and why it did not work. -->

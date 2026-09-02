@@ -169,10 +169,30 @@ Create the `.codestudio/` directory with all harness files.
    - `debugging.md` — Debugging and Error Recovery procedure
    - `commit.md` — Git Commit Discipline procedure
    - `review.md` — Code Review and Quality procedure
+   - `oracles.md` — Authority precedence for sources and citations
 
    These are the SDLC skill files the orchestrator reads at each loop stage.
    They are **self-contained inside the project harness** — no external dependency required.
    **Preserve existing if upgrade mode** (do not overwrite customised skills).
+
+5a. **`.codestudio/workflows/`** — copy all files from `./templates/workflows/` as-is:
+   - `feature.md` — New capability workflow
+   - `bugfix.md` — Defect workflow (failing test comes first)
+   - `refactor.md` — Structural change workflow (behaviour must not change)
+   - `api-change.md` — Public API change workflow (breaking changes require human)
+
+   The orchestrator routes each task to its workflow file at SPEC time.
+   **Preserve existing if upgrade mode.**
+
+5b. **`.codestudio/policies/`** — copy all files from `./templates/policies/` as-is:
+   - `never-weaken.md` — Do not weaken a gate to pass it
+   - `evidence-before-done.md` — A task is done when tools say so
+   - `spec-before-code.md` — Write ## What before implementing
+   - `reproduce-before-fix.md` — Failing test before bugfix
+   - `root-cause-not-symptom.md` — Fix the cause, not the crash
+
+   Policies are cited by id in review findings (e.g. "Policy: never-weaken violated").
+   **Preserve existing if upgrade mode.**
 
 6. **`.codestudio/instructions/task-conventions.instructions.md`** — from `task-conventions.instructions.md.tmpl`
    Replace `{{PROJECT_NAME}}`.
@@ -234,6 +254,8 @@ Create the `.codestudio/` directory with all harness files.
 | `agents/orchestrator.agent.md` | Overwrite (re-detect settings) |
 | `instructions/task-conventions.instructions.md` | Overwrite |
 | `skills/*.md` | **PRESERVE** (keep project-customised skills) |
+| `workflows/*.md` | **PRESERVE** (keep project-customised workflows) |
+| `policies/*.md` | **PRESERVE** (keep project-customised policies) |
 | `catalogs/defects-*.md` | **PRESERVE** |
 | `project-context.md` | **PRESERVE** |
 | `tasks/index.json` | **PRESERVE** |
