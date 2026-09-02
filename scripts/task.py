@@ -820,7 +820,13 @@ def get_stage_def(name):
 
 
 def check_artifact(task_id, artifact_pattern):
-    """Check if a required artifact (## section) exists in the task file."""
+    """Check if a required artifact (## section) exists in the task file with real content.
+
+    Rejects:
+    - Missing task file
+    - Section header present but body is empty or whitespace-only
+    - Section body contains only empty checkbox stubs '- [ ] ' with no title text
+    """
     if not artifact_pattern:
         return True, ""
     task_file = os.path.join(TASKS_DIR, f"{task_id}.md")
@@ -828,13 +834,24 @@ def check_artifact(task_id, artifact_pattern):
         return False, f"Task file .codestudio/tasks/{task_id}.md does not exist."
     with open(task_file, "r") as f:
         content = f.read()
-    if re.search(artifact_pattern, content, re.MULTILINE):
-        # Also check it has real content (not just the header)
-        match = re.search(artifact_pattern + r"\s*\n+(.+)", content, re.MULTILINE | re.DOTALL)
-        if match and match.group(1).strip():
-            return True, ""
+    if not re.search(artifact_pattern, content, re.MULTILINE):
+        return False, f"Required section '{artifact_pattern}' not found in task file. Complete this stage before advancing."
+    # Extract body: everything after the matched header up to the next ## heading or EOF
+    body_match = re.search(
+        artifact_pattern + r"\s*\n+(.*?)(?=^##\s|\Z)",
+        content, re.MULTILINE | re.DOTALL
+    )
+    if not body_match:
         return False, f"Section '{artifact_pattern}' exists but appears empty. Complete it before advancing."
-    return False, f"Required section '{artifact_pattern}' not found in task file. Complete this stage before advancing."
+    body = body_match.group(1)
+    # Reject whitespace-only body
+    if not body.strip():
+        return False, f"Section '{artifact_pattern}' exists but appears empty. Complete it before advancing."
+    # Reject body made up only of empty checkbox stubs '- [ ]' with no title text
+    non_empty_lines = [ln.strip() for ln in body.strip().splitlines() if ln.strip()]
+    if non_empty_lines and all(re.fullmatch(r'-\s*\[[ xX]?\]\s*', ln) for ln in non_empty_lines):
+        return False, f"Section '{artifact_pattern}' contains only empty checkboxes. Add task titles before advancing."
+    return True, ""
 
 
 def cmd_stage(tasks, advance=False):
@@ -931,6 +948,13 @@ def cmd_next(tasks):
         print(f"ACTIVE: {active['id']} — {active['title']}")
         if os.path.exists(task_file):
             print(f"FILE:   .codestudio/tasks/{active['id']}.md")
+        # Always reprint stage instruction on resume so agent has full context
+        current_stage = active.get("stage", "SPEC")
+        stage_def = get_stage_def(current_stage)
+        if stage_def:
+            print(f"STAGE:  {current_stage} — {stage_def['instruction']}")
+            if stage_def["skill"]:
+                print(f"READ:   .codestudio/skills/{stage_def['skill']}")
         return
 
     done_ids = {t["id"] for t in tasks if t["status"] == "done"}
@@ -949,9 +973,11 @@ def cmd_next(tasks):
             save_index(tasks)
 
             task_file = os.path.join(TASKS_DIR, f"{t['id']}.md")
-            # Ensure stage is set on tasks created before stage tracking
-            if "stage" not in t:
+            # Ensure stage is set — covers tasks created before stage tracking
+            # and tasks whose dependencies had no stage field (legacy index.json)
+            if not t.get("stage"):
                 t["stage"] = "SPEC"
+            save_index(tasks)  # persist stage field before proceeding
 
             if not os.path.exists(task_file):
                 with open(task_file, "w") as f:
@@ -997,11 +1023,21 @@ def cmd_next(tasks):
 
 
 def cmd_done(tasks, skip_gates=False):
-    """Active → done. Requires passing evidence unless --skip-gates."""
+    """Active → done. Requires LEARN stage + passing evidence unless --skip-gates."""
     active = get_active(tasks)
     if not active:
         print("ERROR: No active task. Run 'task next' first.")
         sys.exit(1)
+
+    # Require LEARN stage before marking done (unless skipping gates)
+    if not skip_gates:
+        current_stage = active.get("stage", "SPEC")
+        if current_stage != "LEARN":
+            print(f"REFUSED: cannot mark {active['id']} done — still at stage {current_stage}.")
+            print(f"  Complete all stages first: SPEC → PLAN → BUILD → VERIFY → REVIEW → LEARN")
+            print(f"  Current stage: {current_stage}")
+            print(f"  Run 'task stage' to see what is needed, then 'task stage advance' when done.")
+            sys.exit(1)
 
     gates = parse_gates()
     if gates and not skip_gates:
