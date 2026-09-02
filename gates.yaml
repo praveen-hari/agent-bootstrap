@@ -1,0 +1,13 @@
+# Gates for the agent-bootstrap repo itself.
+# Run by: python3 .codestudio/task.py verify  (when this repo is bootstrapped)
+# Also runnable directly: python3 -m pytest tests/ -q
+#
+# These gates protect task.py — the stage machine that enforces SDLC
+# compliance in every project this skill generates.
+
+gates:
+  - id: unit-tests
+    command: python3 tests/test_task.py
+    type: exit-code
+    threshold: 0
+    description: "All unit tests for task.py stage machine must pass"
